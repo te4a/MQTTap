@@ -1,0 +1,49 @@
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    func,
+)
+
+metadata = MetaData()
+
+roles = Table(
+    "roles",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("name", String(50), unique=True, nullable=False),
+)
+
+users = Table(
+    "users",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("email", String(255), unique=True, nullable=False),
+    Column("password_hash", String(255), nullable=False),
+    Column("role_id", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=func.now()),
+)
+
+settings = Table(
+    "settings",
+    metadata,
+    Column("key", String(100), primary_key=True),
+    Column("value", Text, nullable=False),
+    Column("type", String(30), nullable=False),
+    Column("updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now()),
+)
+
+topic_registry = Table(
+    "topic_registry",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("topic", String(255), unique=True, nullable=False),
+    Column("table_name", String(255), unique=True, nullable=False),
+    Column("is_json", Boolean, nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=func.now()),
+)

@@ -1,0 +1,20 @@
+{
+  "name": "mqttap-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.0.2",
+    "svelte": "^4.2.0",
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0",
+    "svelte-spa-router": "^4.0.1"
+  }
+}
