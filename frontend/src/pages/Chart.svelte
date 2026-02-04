@@ -24,7 +24,7 @@
     onMount(async () => {
         try {
             topics = await api.topics()
-            const settings = await api.getSettings()
+            const settings = await api.getPublicSettings()
             if (settings && settings.float_precision !== undefined) {
                 floatPrecision = Number(settings.float_precision)
             }
@@ -256,8 +256,8 @@
                 item.chart.data.labels = labels
                 item.chart.data.datasets[0].data = values
                 item.chart.data.datasets[0].pointRadius = item.showPoints ? 3 : 0
-                item.chart.data.datasets[0].pointHoverRadius = item.showPoints ? 4 : 0
-                item.chart.data.datasets[0].pointHitRadius = item.showPoints ? 3 : 0
+                item.chart.data.datasets[0].pointHoverRadius = item.showPoints ? 4 : 4
+                item.chart.data.datasets[0].pointHitRadius = item.showPoints ? 3 : 10
                 item.chart.options.scales = {
                     x: {
                         ticks: {
@@ -269,6 +269,10 @@
                             callback: formatNumber
                         }
                     }
+                }
+                item.chart.options.interaction = {
+                    mode: 'nearest',
+                    intersect: false
                 }
                 item.chart.options.plugins = {
                     tooltip: {
@@ -292,14 +296,18 @@
                                 backgroundColor: 'rgba(17,24,39,0.1)',
                                 tension: 0.2,
                                 pointRadius: item.showPoints ? 3 : 0,
-                                pointHoverRadius: item.showPoints ? 4 : 0,
-                                pointHitRadius: item.showPoints ? 3 : 0
+                                pointHoverRadius: item.showPoints ? 4 : 4,
+                                pointHitRadius: item.showPoints ? 3 : 10
                             }
                         ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'nearest',
+                            intersect: false
+                        },
                         scales: {
                             x: {
                                 ticks: {

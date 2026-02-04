@@ -55,6 +55,7 @@ export const api = {
   }),
   me: () => request('/auth/me'),
   getSettings: () => request('/settings'),
+  getPublicSettings: () => request('/settings/public'),
   updateSettings: (payload) => request('/settings', {
     method: 'PUT',
     body: JSON.stringify(payload)

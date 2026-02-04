@@ -90,6 +90,12 @@ async def get_settings(user=Depends(require_admin)) -> dict[str, Any]:
     return data
 
 
+@app.get("/settings/public")
+async def get_public_settings(user=Depends(require_user)) -> dict[str, Any]:
+    data = await load_settings(engine)
+    return {"float_precision": data.get("float_precision")}
+
+
 @app.put("/settings")
 async def update_settings(payload: dict[str, Any], user=Depends(require_admin)) -> dict[str, Any]:
     allowed = {
