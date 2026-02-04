@@ -505,10 +505,16 @@ _index_path = _dist_path / "index.html"
 if _dist_path.exists() and _index_path.exists():
     if _assets_path.exists():
         app.mount("/assets", StaticFiles(directory=_assets_path), name="assets")
+    favicon_path = _dist_path / "favicon.ico"
 
     @app.get("/")
     async def root() -> FileResponse:
         return FileResponse(_index_path)
+
+    if favicon_path.exists():
+        @app.get("/favicon.ico")
+        async def favicon() -> FileResponse:
+            return FileResponse(favicon_path)
 
     @app.get("/{path:path}")
     async def frontend_fallback(path: str) -> FileResponse:

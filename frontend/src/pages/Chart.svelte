@@ -20,6 +20,7 @@
     let refreshTimer = null
     const refreshMs = 5000
     let dragId = null
+    let resizeState = null
 
     onMount(async () => {
         try {
@@ -76,6 +77,7 @@
                 showPoints: cfg.showPoints !== false,
                 label: cfg.label || (isAggEnabled(normalizedAgg) ? `${cfg.field} (${normalizedAgg})` : `${cfg.field} (raw)`),
                 order,
+                height: Number.isFinite(cfg.height) ? cfg.height : 240,
                 canvas: null,
                 chart: null,
                 menuOpen: false,
@@ -187,7 +189,8 @@
             toTs: item.toTs,
             showPoints: item.showPoints,
             label: item.label,
-            order: item.order
+            order: item.order,
+            height: item.height
         }
     }
 
@@ -350,7 +353,8 @@
             toTs,
             showPoints,
             label: isAggEnabled(agg) ? `${selectedField} (${agg})` : `${selectedField} (raw)`,
-            order: charts.length
+            order: charts.length,
+            height: 240
         }
         const saved = await api.createChart({name: config.label, config})
         const item = {
@@ -365,6 +369,7 @@
             showPoints: config.showPoints,
             label: config.label,
             order: config.order,
+            height: config.height,
             canvas: null,
             chart: null,
             menuOpen: false,
@@ -451,6 +456,43 @@
 
     function onDragEnd() {
         dragId = null
+    }
+
+    function clampHeight(value) {
+        const maxHeight = typeof window !== 'undefined' ? window.innerHeight : 600
+        return Math.max(200, Math.min(value, maxHeight))
+    }
+
+    function startResize(item, event) {
+        event.preventDefault()
+        resizeState = {
+            id: item.id,
+            startY: event.clientY,
+            startHeight: item.height
+        }
+        window.addEventListener('mousemove', onResizeMove)
+        window.addEventListener('mouseup', onResizeEnd)
+    }
+
+    function onResizeMove(event) {
+        if (!resizeState) return
+        const item = charts.find(c => c.id === resizeState.id)
+        if (!item) return
+        const nextHeight = clampHeight(resizeState.startHeight + (event.clientY - resizeState.startY))
+        item.height = nextHeight
+        charts = [...charts]
+        if (item.chart) item.chart.resize()
+    }
+
+    async function onResizeEnd() {
+        if (!resizeState) return
+        const item = charts.find(c => c.id === resizeState.id)
+        resizeState = null
+        window.removeEventListener('mousemove', onResizeMove)
+        window.removeEventListener('mouseup', onResizeEnd)
+        if (item) {
+            await persistChart(item)
+        }
     }
 </script>
 
@@ -572,9 +614,10 @@
                     <button class="ghost" on:click={() => removeChart(item.id)}>Удалить</button>
                 </div>
             </div>
-            <div class="chart-area">
+            <div class="chart-area" style={`height: ${item.height}px`}>
                 <canvas bind:this={item.canvas}></canvas>
             </div>
+            <div class="resize-grip" on:mousedown={(e) => startResize(item, e)}></div>
         </section>
     {/each}
 </div>
@@ -647,6 +690,7 @@
         display: flex;
         flex-direction: column;
         gap: 12px;
+        position: relative;
     }
 
     .chart-card.dragging {
@@ -676,7 +720,16 @@
     }
 
     .chart-area {
-        height: 240px;
+        min-height: 200px;
+    }
+
+    .resize-grip {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 12px;
+        cursor: ns-resize;
     }
 
     .menu {
