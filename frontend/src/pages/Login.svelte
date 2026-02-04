@@ -1,6 +1,8 @@
 <script>
+  import { createEventDispatcher } from 'svelte'
   import { api, setToken } from '../lib.js'
 
+  const dispatch = createEventDispatcher()
   let username = ''
   let password = ''
   let error = ''
@@ -10,8 +12,8 @@
     try {
       const token = await api.login(username, password)
       setToken(token.access_token)
+      dispatch('navigate', '/')
       window.dispatchEvent(new Event('authChange'))
-      window.location.hash = '#/'
     } catch (err) {
       error = err.message
     }

@@ -1,6 +1,5 @@
 <script>
   import { onMount } from 'svelte'
-  import Router from 'svelte-spa-router'
   import Sidebar from './components/Sidebar.svelte'
   import Topbar from './components/Topbar.svelte'
   import Login from './pages/Login.svelte'
@@ -20,6 +19,17 @@
 
   let loggedIn = false
   let user = null
+  let currentPath = window.location.pathname || '/'
+
+  function navigate(path) {
+    if (path === currentPath) return
+    window.history.pushState({}, '', path)
+    currentPath = path
+  }
+
+  function resolveRoute(path) {
+    return routes[path] || History
+  }
 
   async function refreshAuth() {
     loggedIn = !!getToken()
@@ -40,22 +50,29 @@
   onMount(() => {
     refreshAuth()
     const handler = () => refreshAuth()
+    const popHandler = () => {
+      currentPath = window.location.pathname || '/'
+    }
     window.addEventListener('authChange', handler)
-    return () => window.removeEventListener('authChange', handler)
+    window.addEventListener('popstate', popHandler)
+    return () => {
+      window.removeEventListener('authChange', handler)
+      window.removeEventListener('popstate', popHandler)
+    }
   })
 </script>
 
 {#if !loggedIn}
   <div class="login-only">
-    <Login />
+    <Login on:navigate={(e) => navigate(e.detail)} />
   </div>
 {:else}
   <div class="app">
-    <Sidebar {loggedIn} isAdmin={user?.role === 'admin'} />
+    <Sidebar {loggedIn} isAdmin={user?.role === 'admin'} {navigate} />
     <div class="main">
       <Topbar {user} on:authChange={refreshAuth} />
       <div class="content">
-        <Router {routes} />
+        <svelte:component this={resolveRoute(currentPath)} />
       </div>
     </div>
   </div>

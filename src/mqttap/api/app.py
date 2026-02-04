@@ -494,10 +494,21 @@ async def _history_aggregate(
 
 
 _dist_path = (Path.cwd() / "frontend" / "dist").resolve()
-if _dist_path.exists():
-    app.mount("/", StaticFiles(directory=_dist_path, html=True), name="frontend")
+_assets_path = _dist_path / "assets"
+_index_path = _dist_path / "index.html"
+if _dist_path.exists() and _index_path.exists():
+    if _assets_path.exists():
+        app.mount("/assets", StaticFiles(directory=_assets_path), name="assets")
+
+    @app.get("/")
+    async def root() -> FileResponse:
+        return FileResponse(_index_path)
+
+    @app.get("/{path:path}")
+    async def frontend_fallback(path: str) -> FileResponse:
+        return FileResponse(_index_path)
 else:
     @app.get("/")
     async def root() -> dict[str, str]:
         logger.error(f"Frontend not built. Expected at {_dist_path}")
-        return {"message": "Frontend not built. Run: cd frontend && npm run build"}
+        return {"message": "Frontend not built. Run: cd frontend && pnpm build"}

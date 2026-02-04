@@ -19,6 +19,7 @@
     let nextId = 1
     let refreshTimer = null
     const refreshMs = 5000
+    let dragId = null
 
     onMount(async () => {
         try {
@@ -56,11 +57,13 @@
 
     async function loadSavedCharts() {
         const saved = await api.listCharts()
-        charts = []
+        const loaded = []
+        let index = 0
         for (const item of saved) {
             const cfg = typeof item.config === 'string' ? JSON.parse(item.config) : (item.config || {})
             const topic = topics.find(t => t.topic === cfg.topic)
             const normalizedAgg = cfg.agg === 'none' ? 'off' : (cfg.agg || 'avg')
+            const order = Number.isFinite(cfg.order) ? cfg.order : index
             const chart = {
                 id: item.id,
                 topic: cfg.topic,
@@ -72,13 +75,19 @@
                 toTs: cfg.toTs || '',
                 showPoints: cfg.showPoints !== false,
                 label: cfg.label || (isAggEnabled(normalizedAgg) ? `${cfg.field} (${normalizedAgg})` : `${cfg.field} (raw)`),
+                order,
                 canvas: null,
                 chart: null,
                 menuOpen: false,
-                updating: false
+                updating: false,
+                fromInitialized: !!cfg.fromTs
             }
-            charts = [...charts, chart]
-            await tick()
+            loaded.push(chart)
+            index += 1
+        }
+        charts = loaded.sort((a, b) => a.order - b.order)
+        await tick()
+        for (const chart of charts) {
             await buildChart(chart)
         }
     }
@@ -157,8 +166,19 @@
         return String(value)
     }
 
-    async function updateChartConfig(item) {
-        const config = {
+    function toLocalInput(value) {
+        const d = new Date(value)
+        if (Number.isNaN(d.getTime())) return ''
+        const yyyy = d.getFullYear().toString().padStart(4, '0')
+        const mm = (d.getMonth() + 1).toString().padStart(2, '0')
+        const dd = d.getDate().toString().padStart(2, '0')
+        const hh = d.getHours().toString().padStart(2, '0')
+        const mi = d.getMinutes().toString().padStart(2, '0')
+        return `${yyyy}-${mm}-${dd}T${hh}:${mi}`
+    }
+
+    function buildConfig(item) {
+        return {
             topic: item.topic,
             field: item.field,
             agg: item.agg,
@@ -166,9 +186,18 @@
             fromTs: item.fromTs,
             toTs: item.toTs,
             showPoints: item.showPoints,
-            label: item.label
+            label: item.label,
+            order: item.order
         }
+    }
+
+    async function persistChart(item) {
+        const config = buildConfig(item)
         await api.updateChart(item.id, {name: item.label, config})
+    }
+
+    async function updateChartConfig(item) {
+        await persistChart(item)
         await buildChart(item)
     }
 
@@ -202,6 +231,18 @@
                 ? rows.map(r => (item.isJson ? r[item.field] : r.value))
                 : rows.map(r => valueFromRow(r, item.field, item.isJson)).reverse()
 
+            if (!item.fromTs && labels.length) {
+                const earliest = labels[0]
+                const localValue = toLocalInput(earliest)
+                if (localValue) {
+                    item.fromTs = localValue
+                    if (!item.fromInitialized) {
+                        item.fromInitialized = true
+                        await persistChart(item)
+                    }
+                }
+            }
+
             const labelFormatter = makeLabelFormatter(labels)
             const tickCallback = (value, index) => {
                 const label = labelFormatter.byIndex(index)
@@ -216,6 +257,7 @@
                 item.chart.data.datasets[0].data = values
                 item.chart.data.datasets[0].pointRadius = item.showPoints ? 3 : 0
                 item.chart.data.datasets[0].pointHoverRadius = item.showPoints ? 4 : 0
+                item.chart.data.datasets[0].pointHitRadius = item.showPoints ? 3 : 0
                 item.chart.options.scales = {
                     x: {
                         ticks: {
@@ -250,7 +292,8 @@
                                 backgroundColor: 'rgba(17,24,39,0.1)',
                                 tension: 0.2,
                                 pointRadius: item.showPoints ? 3 : 0,
-                                pointHoverRadius: item.showPoints ? 4 : 0
+                                pointHoverRadius: item.showPoints ? 4 : 0,
+                                pointHitRadius: item.showPoints ? 3 : 0
                             }
                         ]
                     },
@@ -298,7 +341,8 @@
             fromTs,
             toTs,
             showPoints,
-            label: isAggEnabled(agg) ? `${selectedField} (${agg})` : `${selectedField} (raw)`
+            label: isAggEnabled(agg) ? `${selectedField} (${agg})` : `${selectedField} (raw)`,
+            order: charts.length
         }
         const saved = await api.createChart({name: config.label, config})
         const item = {
@@ -312,10 +356,12 @@
             toTs: config.toTs,
             showPoints: config.showPoints,
             label: config.label,
+            order: config.order,
             canvas: null,
             chart: null,
             menuOpen: false,
-            updating: false
+            updating: false,
+            fromInitialized: !!config.fromTs
         }
         charts = [...charts, item]
         await tick()
@@ -337,15 +383,66 @@
         charts = []
     }
 
-    async function togglePoints(item) {
-        item.showPoints = !item.showPoints
+    async function togglePoints(item, event) {
+        item.showPoints = event.target.checked
         item.menuOpen = false
+        charts = [...charts]
+        if (item.chart) {
+            item.chart.destroy()
+            item.chart = null
+        }
         await updateChartConfig(item)
     }
 
     function toggleMenu(item) {
         item.menuOpen = !item.menuOpen
         charts = [...charts]
+    }
+
+    function onDragStart(item, event) {
+        dragId = item.id
+        if (event?.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move'
+            event.dataTransfer.setData('text/plain', String(item.id))
+        }
+    }
+
+    function onDragOver(event) {
+        event.preventDefault()
+        if (event?.dataTransfer) {
+            event.dataTransfer.dropEffect = 'move'
+        }
+    }
+
+    async function onDrop(target, event) {
+        event.preventDefault()
+        const raw = event?.dataTransfer?.getData('text/plain')
+        const droppedId = Number(raw || dragId)
+        if (!droppedId || droppedId === target.id) return
+        const fromIndex = charts.findIndex(c => c.id === droppedId)
+        const toIndex = charts.findIndex(c => c.id === target.id)
+        if (fromIndex < 0 || toIndex < 0) return
+        const next = [...charts]
+        const [moved] = next.splice(fromIndex, 1)
+        next.splice(toIndex, 0, moved)
+        let changed = false
+        next.forEach((item, index) => {
+            if (item.order !== index) {
+                item.order = index
+                changed = true
+            }
+        })
+        charts = next
+        if (changed) {
+            for (const item of next) {
+                await persistChart(item)
+            }
+        }
+        dragId = null
+    }
+
+    function onDragEnd() {
+        dragId = null
     }
 </script>
 
@@ -408,8 +505,16 @@
 </section>
 
 <div class="grid">
-    {#each charts as item}
-        <section class="chart-card">
+    {#each charts as item (item.id)}
+        <section
+            class="chart-card"
+            class:dragging={dragId === item.id}
+            draggable="true"
+            on:dragstart={(e) => onDragStart(item, e)}
+            on:dragover={onDragOver}
+            on:drop={(e) => onDrop(item, e)}
+            on:dragend={onDragEnd}
+        >
             <div class="chart-head">
                 <div>
                     <div class="title">{item.topic}</div>
@@ -422,7 +527,7 @@
                             <div class="menu-panel">
                                 <label>
                                     <input type="checkbox" checked={item.showPoints}
-                                           on:change={() => togglePoints(item)}/>
+                                           on:change={(e) => togglePoints(item, e)}/>
                                     Показывать точки
                                 </label>
                                 <div class="menu-section">
@@ -534,6 +639,10 @@
         display: flex;
         flex-direction: column;
         gap: 12px;
+    }
+
+    .chart-card.dragging {
+        opacity: 0.7;
     }
 
     .chart-head {

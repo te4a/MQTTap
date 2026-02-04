@@ -1,13 +1,19 @@
 <script>
   export let loggedIn = false
   export let isAdmin = false
+  export let navigate
 
   const links = [
-    { href: '#/', label: 'История' },
-    { href: '#/chart', label: 'Графики' },
-    { href: '#/settings', label: 'Настройки', adminOnly: true },
-    { href: '#/users', label: 'Пользователи', adminOnly: true }
+    { href: '/', label: 'История' },
+    { href: '/chart', label: 'Графики' },
+    { href: '/settings', label: 'Настройки', adminOnly: true },
+    { href: '/users', label: 'Пользователи', adminOnly: true }
   ]
+
+  function go(path, event) {
+    event.preventDefault()
+    if (navigate) navigate(path)
+  }
 </script>
 
 <aside class="sidebar">
@@ -15,7 +21,7 @@
   <nav>
     {#each links as link}
       {#if !link.adminOnly || isAdmin}
-        <a class:disabled={!loggedIn} href={link.href}>{link.label}</a>
+        <a class:disabled={!loggedIn} href={link.href} on:click={(e) => go(link.href, e)}>{link.label}</a>
       {/if}
     {/each}
   </nav>
