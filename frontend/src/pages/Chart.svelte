@@ -12,6 +12,7 @@
     let fromTs = ''
     let toTs = ''
     let showPoints = true
+    let floatPrecision = 5
     let error = ''
 
     let charts = []
@@ -22,6 +23,10 @@
     onMount(async () => {
         try {
             topics = await api.topics()
+            const settings = await api.getSettings()
+            if (settings && settings.float_precision !== undefined) {
+                floatPrecision = Number(settings.float_precision)
+            }
             await loadSavedCharts()
             if (topics.length && !selectedTopic) {
                 selectedTopic = topics[0].topic
@@ -89,7 +94,7 @@
         return row.value_float ?? row.value_int ?? row.value_bool ?? row.value_text ?? row.value_json
     }
 
-    function makeTickCallback(labels) {
+    function makeLabelFormatter(labels) {
         const parsed = labels.map((value) => {
             const d = new Date(value)
             if (Number.isNaN(d.getTime())) return null
@@ -128,32 +133,44 @@
                 .join('')
         }
 
-        return (value, index) => {
-            const d = parsed[index]
-            const label = formatLabel(d) || String(labels[index])
-            if (index === 0) return label
-            const prevLabel = formatLabel(parsed[index - 1])
-            return label === prevLabel ? '' : label
+        return {
+            byIndex: (index) => {
+                const d = parsed[index]
+                return formatLabel(d) || String(labels[index])
+            },
+            byValue: (value) => {
+                const d = new Date(value)
+                if (Number.isNaN(d.getTime())) return String(value)
+                return formatLabel(d)
+            }
         }
     }
 
     function formatNumber(value) {
         if (value === null || value === undefined) return ''
-        if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            const digits = Number.isFinite(floatPrecision) ? Math.max(0, floatPrecision) : 5
+            const factor = Math.pow(10, digits)
+            const rounded = Math.round(value * factor) / factor
+            return String(rounded)
+        }
         return String(value)
     }
 
-  function formatTimestamp(value) {
-    const d = new Date(value)
-    if (Number.isNaN(d.getTime())) return String(value)
-    const mm = (d.getMonth() + 1).toString().padStart(2, '0')
-    const dd = d.getDate().toString().padStart(2, '0')
-    const hh = d.getHours().toString().padStart(2, '0')
-    const mi = d.getMinutes().toString().padStart(2, '0')
-    const ss = d.getSeconds().toString().padStart(2, '0')
-    const ms2 = Math.floor(d.getMilliseconds() / 10).toString().padStart(2, '0')
-    return `${mm}.${dd} ${hh}:${mi}:${ss}:${ms2}`
-  }
+    async function updateChartConfig(item) {
+        const config = {
+            topic: item.topic,
+            field: item.field,
+            agg: item.agg,
+            interval: item.interval,
+            fromTs: item.fromTs,
+            toTs: item.toTs,
+            showPoints: item.showPoints,
+            label: item.label
+        }
+        await api.updateChart(item.id, {name: item.label, config})
+        await buildChart(item)
+    }
 
     async function buildChart(item) {
         if (item.updating) return
@@ -185,7 +202,13 @@
                 ? rows.map(r => (item.isJson ? r[item.field] : r.value))
                 : rows.map(r => valueFromRow(r, item.field, item.isJson)).reverse()
 
-            const tickCallback = makeTickCallback(labels)
+            const labelFormatter = makeLabelFormatter(labels)
+            const tickCallback = (value, index) => {
+                const label = labelFormatter.byIndex(index)
+                if (index === 0) return label
+                const prevLabel = labelFormatter.byIndex(index - 1)
+                return label === prevLabel ? '' : label
+            }
 
             await tick()
             if (item.chart) {
@@ -208,7 +231,7 @@
                 item.chart.options.plugins = {
                     tooltip: {
                         callbacks: {
-                            title: (items) => items.length ? formatTimestamp(items[0].label) : '',
+                            title: (items) => items.length ? labelFormatter.byValue(items[0].label) : '',
                             label: (ctx) => formatNumber(ctx.parsed.y)
                         }
                     }
@@ -249,7 +272,7 @@
                         plugins: {
                             tooltip: {
                                 callbacks: {
-                                    title: (items) => items.length ? formatTimestamp(items[0].label) : '',
+                                    title: (items) => items.length ? labelFormatter.byValue(items[0].label) : '',
                                     label: (ctx) => formatNumber(ctx.parsed.y)
                                 }
                             }
@@ -317,19 +340,7 @@
     async function togglePoints(item) {
         item.showPoints = !item.showPoints
         item.menuOpen = false
-        const config = {
-            topic: item.topic,
-            field: item.field,
-            agg: item.agg,
-            interval: item.interval,
-            fromTs: item.fromTs,
-            toTs: item.toTs,
-            showPoints: item.showPoints,
-            label: item.label
-        }
-        await api.updateChart(item.id, {name: item.label, config})
-        charts = [...charts]
-        await buildChart(item)
+        await updateChartConfig(item)
     }
 
     function toggleMenu(item) {
@@ -414,6 +425,34 @@
                                            on:change={() => togglePoints(item)}/>
                                     Показывать точки
                                 </label>
+                                <div class="menu-section">
+                                    <label>Агрегация</label>
+                                    <select bind:value={item.agg} on:change={() => updateChartConfig(item)}>
+                                        <option value="off">off</option>
+                                        <option value="avg">avg</option>
+                                        <option value="min">min</option>
+                                        <option value="max">max</option>
+                                    </select>
+                                </div>
+                                {#if isAggEnabled(item.agg)}
+                                    <div class="menu-section">
+                                        <label>Интервал</label>
+                                        <select bind:value={item.interval} on:change={() => updateChartConfig(item)}>
+                                            <option value="second">second</option>
+                                            <option value="minute">minute</option>
+                                            <option value="hour">hour</option>
+                                            <option value="day">day</option>
+                                        </select>
+                                    </div>
+                                {/if}
+                                <div class="menu-section">
+                                    <label>С</label>
+                                    <input type="datetime-local" bind:value={item.fromTs} on:change={() => updateChartConfig(item)} />
+                                </div>
+                                <div class="menu-section">
+                                    <label>По</label>
+                                    <input type="datetime-local" bind:value={item.toTs} on:change={() => updateChartConfig(item)} />
+                                </div>
                             </div>
                         {/if}
                     </div>
@@ -536,7 +575,14 @@
         border-radius: 8px;
         padding: 10px 12px;
         box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-        min-width: 160px;
+        min-width: 200px;
         z-index: 5;
+        display: grid;
+        gap: 8px;
+    }
+
+    .menu-section {
+        display: grid;
+        gap: 6px;
     }
 </style>

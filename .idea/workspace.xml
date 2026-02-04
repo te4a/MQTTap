@@ -4,13 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9b2bc64c-ebb3-496c-ab62-163e060949c1" name="Changes" comment="feat: форматирование даты в графике">
+    <list default="true" id="9b2bc64c-ebb3-496c-ab62-163e060949c1" name="Changes" comment="feat: форматирование даты по оси X">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/dist/assets/index-CZfXBH3G.css" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/dist/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/dist/index.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/pages/Chart.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/Chart.svelte" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/Settings.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/Settings.svelte" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mqttap/api/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/mqttap/api/app.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -162,7 +159,7 @@
       <option name="presentableId" value="Default" />
       <updated>1770124803805</updated>
       <workItem from="1770124804923" duration="9817000" />
-      <workItem from="1770135199204" duration="33673000" />
+      <workItem from="1770135199204" duration="37846000" />
     </task>
     <task id="LOCAL-00001" summary="inital commit">
       <option name="closed" value="true" />
@@ -188,7 +185,15 @@
       <option name="project" value="LOCAL" />
       <updated>1770169813869</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="feat: форматирование даты по оси X">
+      <option name="closed" value="true" />
+      <created>1770204710216</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1770204710216</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -209,7 +214,8 @@
     <MESSAGE value="inital commit" />
     <MESSAGE value="feat: Код доведён до работоспособного состояния" />
     <MESSAGE value="feat: форматирование даты в графике" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: форматирование даты в графике" />
+    <MESSAGE value="feat: форматирование даты по оси X" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: форматирование даты по оси X" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -224,6 +230,6 @@
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/MQTTap$main.coverage" NAME="main Coverage Results" MODIFIED="1770129781518" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/MQTTap$Unnamed.coverage" NAME="Unnamed Coverage Results" MODIFIED="1770203712885" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="" />
+    <SUITE FILE_PATH="coverage/MQTTap$Unnamed.coverage" NAME="Unnamed Coverage Results" MODIFIED="1770209188359" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="" />
   </component>
 </project>
