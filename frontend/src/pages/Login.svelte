@@ -1,14 +1,14 @@
 <script>
   import { api, setToken } from '../lib.js'
 
-  let email = ''
+  let username = ''
   let password = ''
   let error = ''
 
   async function submit() {
     error = ''
     try {
-      const token = await api.login(email, password)
+      const token = await api.login(username, password)
       setToken(token.access_token)
       window.dispatchEvent(new Event('authChange'))
       window.location.hash = '#/'
@@ -20,8 +20,8 @@
 
 <div class="card">
   <h2>Вход</h2>
-  <label>Email</label>
-  <input type="email" bind:value={email} placeholder="admin@example.com" />
+  <label>Username</label>
+  <input type="text" bind:value={username} placeholder="admin" />
   <label>Пароль</label>
   <input type="password" bind:value={password} />
   <button on:click={submit}>Войти</button>

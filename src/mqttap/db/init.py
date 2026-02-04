@@ -9,6 +9,7 @@ from sqlalchemy import text
 from mqttap.db.schema import metadata
 from mqttap.config import settings
 from mqttap.security import hash_password
+from mqttap.services.settings import seed_settings_if_empty
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,8 @@ async def init_base_schema(engine: AsyncEngine) -> None:
     await ensure_database_exists()
     async with engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
+        await _ensure_users_schema(conn)
+        await seed_settings_if_empty(conn)
         await _seed_roles_and_admin(conn)
 
 
@@ -68,15 +71,50 @@ async def _seed_roles_and_admin(conn) -> None:
         )
     )
 
-    if settings.admin_email and settings.admin_password:
+    count = await conn.execute(text("SELECT COUNT(*) FROM users"))
+    user_count = count.scalar_one()
+    if (
+        user_count == 0
+        and settings.admin_username
+        and settings.admin_password
+    ):
         password_hash = hash_password(settings.admin_password)
         await conn.execute(
             text(
                 """
-                INSERT INTO users (email, password_hash, role_id)
-                VALUES (:email, :password_hash, 1)
-                ON CONFLICT (email) DO NOTHING
+                INSERT INTO users (username, email, password_hash, role_id)
+                VALUES (:username, :email, :password_hash, 1)
                 """
             ),
-            {"email": settings.admin_email, "password_hash": password_hash},
+            {
+                "username": settings.admin_username,
+                "email": settings.admin_email,
+                "password_hash": password_hash,
+            },
         )
+
+
+async def _ensure_users_schema(conn) -> None:
+    await conn.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(255)")
+    )
+    await conn.execute(
+        text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL")
+    )
+    await conn.execute(
+        text(
+            """
+            UPDATE users
+            SET username = COALESCE(username, email, 'user_' || id)
+            WHERE username IS NULL OR username = ''
+            """
+        )
+    )
+    await conn.execute(
+        text("ALTER TABLE users ALTER COLUMN username SET NOT NULL")
+    )
+    await conn.execute(
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS users_username_uq ON users (username)"
+        )
+    )

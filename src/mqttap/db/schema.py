@@ -4,6 +4,7 @@ from sqlalchemy import (
     DateTime,
     Integer,
     MetaData,
+    JSON,
     String,
     Table,
     Text,
@@ -23,7 +24,8 @@ users = Table(
     "users",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("email", String(255), unique=True, nullable=False),
+    Column("username", String(255), unique=True, nullable=False),
+    Column("email", String(255), unique=True, nullable=True),
     Column("password_hash", String(255), nullable=False),
     Column("role_id", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), server_default=func.now()),
@@ -45,5 +47,15 @@ topic_registry = Table(
     Column("topic", String(255), unique=True, nullable=False),
     Column("table_name", String(255), unique=True, nullable=False),
     Column("is_json", Boolean, nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=func.now()),
+)
+
+user_charts = Table(
+    "user_charts",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("user_id", Integer, nullable=False),
+    Column("name", String(255), nullable=True),
+    Column("config", JSON, nullable=False),
     Column("created_at", DateTime(timezone=True), server_default=func.now()),
 )

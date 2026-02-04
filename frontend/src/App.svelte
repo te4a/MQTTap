@@ -7,19 +7,34 @@
   import History from './pages/History.svelte'
   import Chart from './pages/Chart.svelte'
   import Settings from './pages/Settings.svelte'
-  import { getToken } from './lib.js'
+  import Users from './pages/Users.svelte'
+  import { api, getToken, clearToken } from './lib.js'
 
   const routes = {
     '/': History,
     '/chart': Chart,
     '/settings': Settings,
+    '/users': Users,
     '/login': Login
   }
 
   let loggedIn = false
+  let user = null
 
-  function refreshAuth() {
+  async function refreshAuth() {
     loggedIn = !!getToken()
+    if (!loggedIn) {
+      user = null
+      return
+    }
+    try {
+      user = await api.me()
+    } catch {
+      clearToken()
+      loggedIn = false
+      user = null
+      window.dispatchEvent(new Event('authChange'))
+    }
   }
 
   onMount(() => {
@@ -36,9 +51,9 @@
   </div>
 {:else}
   <div class="app">
-    <Sidebar {loggedIn} />
+    <Sidebar {loggedIn} isAdmin={user?.role === 'admin'} />
     <div class="main">
-      <Topbar />
+      <Topbar {user} on:authChange={refreshAuth} />
       <div class="content">
         <Router {routes} />
       </div>

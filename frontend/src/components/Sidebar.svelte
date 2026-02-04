@@ -1,10 +1,12 @@
 <script>
   export let loggedIn = false
+  export let isAdmin = false
 
   const links = [
     { href: '#/', label: 'История' },
     { href: '#/chart', label: 'Графики' },
-    { href: '#/settings', label: 'Настройки' }
+    { href: '#/settings', label: 'Настройки', adminOnly: true },
+    { href: '#/users', label: 'Пользователи', adminOnly: true }
   ]
 </script>
 
@@ -12,7 +14,9 @@
   <div class="brand">MQTTap</div>
   <nav>
     {#each links as link}
-      <a class:disabled={!loggedIn} href={link.href}>{link.label}</a>
+      {#if !link.adminOnly || isAdmin}
+        <a class:disabled={!loggedIn} href={link.href}>{link.label}</a>
+      {/if}
     {/each}
   </nav>
   <div class="hint">

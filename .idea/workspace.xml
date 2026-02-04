@@ -4,40 +4,32 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9b2bc64c-ebb3-496c-ab62-163e060949c1" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/.env.example" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/index.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/pnpm-workspace.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/App.svelte" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/components/Sidebar.svelte" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/components/Topbar.svelte" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/lib.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/main.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/pages/Chart.svelte" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/pages/History.svelte" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/pages/Login.svelte" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/pages/Settings.svelte" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/vite.config.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/api/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/api/app.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/config.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/db/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/db/core.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/db/init.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/db/schema.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/logging_config.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/services/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/mqttap/services/mqtt.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/uv.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/MQTTap.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/MQTTap.iml" afterDir="false" />
+    <list default="true" id="9b2bc64c-ebb3-496c-ab62-163e060949c1" name="Changes" comment="inital commit">
+      <change afterPath="$PROJECT_DIR$/frontend/dist/assets/index-CZfXBH3G.css" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/dist/index.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/mqttap/api/auth.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/mqttap/api/schemas.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/mqttap/db/dynamic.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/mqttap/security.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/mqttap/services/settings.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/mqttap/services/storage.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/.env.example" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/App.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/Sidebar.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/Sidebar.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/Topbar.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/Topbar.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/lib.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/lib.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/Chart.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/Chart.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/Login.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/Login.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/Settings.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/Settings.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mqttap/api/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/mqttap/api/app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mqttap/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/mqttap/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mqttap/db/init.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/mqttap/db/init.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mqttap/db/schema.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/mqttap/db/schema.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/mqttap/services/mqtt.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/mqttap/services/mqtt.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -45,7 +37,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="5304" />
+    <option name="cachedIndexableFilesCount" value="73" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
@@ -84,6 +76,11 @@
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "WebServerToolWindowPanel.toolwindow.highlight.mappings": "true",
+    "WebServerToolWindowPanel.toolwindow.highlight.symlinks": "true",
+    "WebServerToolWindowPanel.toolwindow.show.date": "false",
+    "WebServerToolWindowPanel.toolwindow.show.permissions": "false",
+    "WebServerToolWindowPanel.toolwindow.show.size": "false",
     "ai.playground.ignore.import.keys.banner.in.settings": "true",
     "git-widget-placeholder": "master",
     "ignore.virus.scanning.warn.message": "true",
@@ -184,12 +181,36 @@
       <option name="presentableId" value="Default" />
       <updated>1770124803805</updated>
       <workItem from="1770124804923" duration="9817000" />
-      <workItem from="1770135199204" duration="7144000" />
+      <workItem from="1770135199204" duration="27741000" />
     </task>
+    <task id="LOCAL-00001" summary="inital commit">
+      <option name="closed" value="true" />
+      <created>1770143252522</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1770143252522</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="inital commit" />
+    <option name="LAST_COMMIT_MESSAGE" value="inital commit" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -201,19 +222,19 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/src/mqttap/db/init.py</url>
-          <line>71</line>
+          <line>80</line>
           <option name="timeStamp" value="2" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/src/mqttap/api/app.py</url>
-          <line>40</line>
-          <option name="timeStamp" value="3" />
+          <line>495</line>
+          <option name="timeStamp" value="4" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/MQTTap$main.coverage" NAME="main Coverage Results" MODIFIED="1770129781518" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/MQTTap$Unnamed.coverage" NAME="Unnamed Coverage Results" MODIFIED="1770143170880" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="" />
+    <SUITE FILE_PATH="coverage/MQTTap$Unnamed.coverage" NAME="Unnamed Coverage Results" MODIFIED="1770164752633" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="" />
   </component>
 </project>

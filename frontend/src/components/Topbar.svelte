@@ -1,57 +1,24 @@
 <script>
-  import { createEventDispatcher, onMount } from 'svelte'
-  import { api, clearToken, getToken } from '../lib.js'
+  import { createEventDispatcher } from 'svelte'
+  import { clearToken } from '../lib.js'
 
+  export let user = null
   const dispatch = createEventDispatcher()
-  let user = null
-  let error = ''
-
-  async function loadMe() {
-    if (!getToken()) {
-      user = null
-      return
-    }
-    try {
-      user = await api.me()
-    } catch (err) {
-      error = err.message
-      clearToken()
-      user = null
-    }
-  }
 
   function logout() {
     clearToken()
-    user = null
     dispatch('authChange')
   }
-
-  onMount(() => {
-    loadMe()
-    const handler = () => loadMe()
-    window.addEventListener('authChange', handler)
-    window.addEventListener('hashchange', handler)
-    return () => {
-      window.removeEventListener('authChange', handler)
-      window.removeEventListener('hashchange', handler)
-    }
-  })
 </script>
 
 <header class="topbar">
   <div class="title">MQTT consumer</div>
   <div class="spacer"></div>
   {#if user}
-    <div class="user">{user.email} · {user.role}</div>
+    <div class="user">{user.username} · {user.role}</div>
     <button on:click={logout}>Выйти</button>
-  {:else}
-    <a href="#/login">Войти</a>
   {/if}
 </header>
-
-{#if error}
-  <div class="error">{error}</div>
-{/if}
 
 <style>
   .topbar {
@@ -83,17 +50,5 @@
     padding: 8px 12px;
     border-radius: 8px;
     cursor: pointer;
-  }
-
-  a {
-    color: #111827;
-    text-decoration: none;
-    font-weight: 600;
-  }
-
-  .error {
-    margin: 12px 24px 0;
-    color: #b91c1c;
-    font-size: 13px;
   }
 </style>

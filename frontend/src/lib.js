@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE || window.location.origin
 
 export function getToken() {
   return localStorage.getItem('token')
@@ -12,6 +12,11 @@ export function clearToken() {
   localStorage.removeItem('token')
 }
 
+function handleUnauthorized() {
+  clearToken()
+  window.dispatchEvent(new Event('authChange'))
+}
+
 async function request(path, options = {}) {
   const headers = options.headers || {}
   const token = getToken()
@@ -22,6 +27,9 @@ async function request(path, options = {}) {
     ...options,
     headers
   })
+  if (resp.status === 401) {
+    handleUnauthorized()
+  }
   if (!resp.ok) {
     const text = await resp.text()
     throw new Error(text || resp.statusText)
@@ -41,9 +49,9 @@ function toQuery(params) {
 }
 
 export const api = {
-  login: (email, password) => request('/auth/login', {
+  login: (username, password) => request('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ username, password })
   }),
   me: () => request('/auth/me'),
   getSettings: () => request('/settings'),
@@ -52,5 +60,25 @@ export const api = {
     body: JSON.stringify(payload)
   }),
   topics: () => request('/topics'),
-  history: (params) => request(`/history${toQuery(params)}`)
+  history: (params) => request(`/history${toQuery(params)}`),
+  listCharts: () => request('/charts'),
+  createChart: (payload) => request('/charts', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
+  updateChart: (id, payload) => request(`/charts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  }),
+  deleteChart: (id) => request(`/charts/${id}`, { method: 'DELETE' }),
+  listUsers: () => request('/users'),
+  createUser: (payload) => request('/users', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
+  updateUser: (id, payload) => request(`/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  }),
+  deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' })
 }

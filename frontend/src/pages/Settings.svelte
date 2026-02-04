@@ -6,7 +6,8 @@
     mqtt_host: '',
     mqtt_port: '',
     mqtt_topics: '',
-    database_dsn: '',
+    mqtt_username: '',
+    mqtt_password: '',
     float_precision: '',
     default_agg: 'avg',
     default_interval: 'minute'
@@ -49,8 +50,11 @@
     <label>MQTT topics</label>
     <input bind:value={form.mqtt_topics} />
 
-    <label>Database DSN</label>
-    <input bind:value={form.database_dsn} />
+    <label>MQTT username</label>
+    <input bind:value={form.mqtt_username} />
+
+    <label>MQTT password</label>
+    <input type="password" bind:value={form.mqtt_password} />
 
     <label>Float precision</label>
     <input bind:value={form.float_precision} />
@@ -60,8 +64,6 @@
       <option value="avg">avg</option>
       <option value="min">min</option>
       <option value="max">max</option>
-      <option value="sum">sum</option>
-      <option value="count">count</option>
     </select>
 
     <label>Default interval</label>

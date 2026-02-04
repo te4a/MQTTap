@@ -4,8 +4,11 @@ import threading
 
 from aiomqtt import Client, MqttError
 
+import logging
+
 from mqttap.config import settings
 from mqttap.db.core import create_engine_from_settings
+from mqttap.services.settings import load_settings
 from mqttap.services.storage import store_message
 
 class MqttConsumer:
@@ -52,29 +55,41 @@ class MqttConsumer:
             loop.close()
 
     async def _run(self) -> None:
-        topics_raw = settings.mqtt_topics
-        if isinstance(topics_raw, (list, tuple)):
-            topics = [str(t).strip() for t in topics_raw if str(t).strip()]
-        else:
-            topics = [t.strip() for t in str(topics_raw).split(",") if t.strip()]
+        logger = logging.getLogger(__name__)
         assert self._stop_event is not None
         while not self._stop_event.is_set():
             try:
+                runtime = await load_settings(self._engine)
+                topics_raw = runtime.get("mqtt_topics", settings.mqtt_topics)
+                if isinstance(topics_raw, (list, tuple)):
+                    topics = [str(t).strip() for t in topics_raw if str(t).strip()]
+                else:
+                    topics = [t.strip() for t in str(topics_raw).split(",") if t.strip()]
+
                 async with Client(
-                    settings.mqtt_host,
-                    settings.mqtt_port,
-                    username=settings.mqtt_username,
-                    password=settings.mqtt_password,
+                    runtime.get("mqtt_host", settings.mqtt_host),
+                    int(runtime.get("mqtt_port", settings.mqtt_port)),
+                    username=runtime.get("mqtt_username", settings.mqtt_username),
+                    password=runtime.get("mqtt_password", settings.mqtt_password),
                 ) as client:
                     self._client = client
                     for topic in topics:
                         await client.subscribe(topic)
                     async for message in client.messages:
                         await self.handle_message(message.topic, message.payload)
-            except MqttError:
+            except MqttError as exc:
+                logger.warning("MQTT connection error: %s", exc)
+                await asyncio.sleep(1)
+            except Exception as exc:
+                logger.exception("MQTT loop error: %s", exc)
                 await asyncio.sleep(1)
 
     async def handle_message(self, topic: str, payload: bytes) -> None:
         if not self._engine:
             return
-        await store_message(self._engine, topic, payload)
+        try:
+            runtime = await load_settings(self._engine)
+            precision = int(runtime.get("float_precision", settings.float_precision))
+            await store_message(self._engine, topic, payload, precision)
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to store MQTT message")

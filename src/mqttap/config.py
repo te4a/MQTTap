@@ -16,9 +16,12 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me"
     jwt_issuer: str = "mqttap"
     jwt_exp_minutes: int = 60
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "localhost,127.0.0.1"
+    admin_username: str | None = None
     admin_email: str | None = None
     admin_password: str | None = None
+    default_agg: str = "avg"
+    default_interval: str = "minute"
 
 
 settings = Settings()
