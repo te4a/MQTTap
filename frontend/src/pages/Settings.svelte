@@ -68,6 +68,7 @@
 
     <label>Default interval</label>
     <select bind:value={form.default_interval}>
+      <option value="second">second</option>
       <option value="minute">minute</option>
       <option value="hour">hour</option>
       <option value="day">day</option>

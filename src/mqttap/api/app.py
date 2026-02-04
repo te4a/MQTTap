@@ -372,7 +372,7 @@ async def history(
     dt_to = _parse_dt(to_ts)
 
     if agg:
-        if interval not in ("minute", "hour", "day"):
+        if interval not in ("second", "minute", "hour", "day"):
             raise HTTPException(status_code=400, detail="Invalid interval")
         return await _history_aggregate(
             table_name,

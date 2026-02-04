@@ -1,519 +1,542 @@
 <script>
-  import { onMount, onDestroy, tick } from 'svelte'
-  import Chart from 'chart.js/auto'
-  import { api } from '../lib.js'
+    import {onMount, onDestroy, tick} from 'svelte'
+    import Chart from 'chart.js/auto'
+    import {api} from '../lib.js'
 
-  let topics = []
-  let selectedTopic = ''
-  let fields = []
-  let selectedField = ''
-  let agg = 'avg'
-  let interval = 'minute'
-  let fromTs = ''
-  let toTs = ''
-  let showPoints = true
-  let error = ''
+    let topics = []
+    let selectedTopic = ''
+    let fields = []
+    let selectedField = ''
+    let agg = 'avg'
+    let interval = 'minute'
+    let fromTs = ''
+    let toTs = ''
+    let showPoints = true
+    let error = ''
 
-  let charts = []
-  let nextId = 1
-  let refreshTimer = null
-  const refreshMs = 5000
+    let charts = []
+    let nextId = 1
+    let refreshTimer = null
+    const refreshMs = 5000
 
-  onMount(async () => {
-    try {
-      topics = await api.topics()
-      await loadSavedCharts()
-      if (topics.length && !selectedTopic) {
-        selectedTopic = topics[0].topic
-        updateFields()
-      }
-    } catch (err) {
-      error = err.message
-    }
-    refreshTimer = setInterval(refreshLiveCharts, refreshMs)
-  })
-
-  onDestroy(() => {
-    if (refreshTimer) clearInterval(refreshTimer)
-  })
-
-  function isAggEnabled(value) {
-    return value && value !== 'none'
-  }
-
-  async function refreshLiveCharts() {
-    for (const item of charts) {
-      if (!item.toTs) {
-        await buildChart(item)
-      }
-    }
-  }
-
-  async function loadSavedCharts() {
-    const saved = await api.listCharts()
-    charts = []
-    for (const item of saved) {
-      const cfg = typeof item.config === 'string' ? JSON.parse(item.config) : (item.config || {})
-      const topic = topics.find(t => t.topic === cfg.topic)
-      const chart = {
-        id: item.id,
-        topic: cfg.topic,
-        field: cfg.field,
-        isJson: topic ? topic.is_json : true,
-        agg: cfg.agg || 'avg',
-        interval: cfg.interval || 'minute',
-        fromTs: cfg.fromTs || '',
-        toTs: cfg.toTs || '',
-        showPoints: cfg.showPoints !== false,
-        label: cfg.label || (isAggEnabled(cfg.agg) ? `${cfg.field} (${cfg.agg})` : `${cfg.field} (raw)`),
-        canvas: null,
-        chart: null,
-        menuOpen: false,
-        updating: false
-      }
-      charts = [...charts, chart]
-      await tick()
-      await buildChart(chart)
-    }
-  }
-
-  function updateFields() {
-    const topic = topics.find(t => t.topic === selectedTopic)
-    fields = topic ? topic.fields : []
-    selectedField = fields[0] || ''
-  }
-
-  function valueFromRow(row, field, isJson) {
-    if (isJson) return row[field]
-    return row.value_float ?? row.value_int ?? row.value_bool ?? row.value_text ?? row.value_json
-  }
-
-  function makeTickCallback(labels) {
-    const parsed = labels.map((value) => {
-      const d = new Date(value)
-      if (Number.isNaN(d.getTime())) return null
-      return d
+    onMount(async () => {
+        try {
+            topics = await api.topics()
+            await loadSavedCharts()
+            if (topics.length && !selectedTopic) {
+                selectedTopic = topics[0].topic
+                updateFields()
+            }
+        } catch (err) {
+            error = err.message
+        }
+        refreshTimer = setInterval(refreshLiveCharts, refreshMs)
     })
 
-    const first = parsed.find(d => d)
-    const allSameDate = first
-      ? parsed.every(d => d && d.getFullYear() === first.getFullYear() && d.getMonth() === first.getMonth() && d.getDate() === first.getDate())
-      : false
-    const allSameHour = first
-      ? parsed.every(d => d && d.getHours() === first.getHours())
-      : false
+    onDestroy(() => {
+        if (refreshTimer) clearInterval(refreshTimer)
+    })
 
-    function formatLabel(d) {
-      if (!d) return ''
-      const mm = (d.getMonth() + 1).toString().padStart(2, '0')
-      const dd = d.getDate().toString().padStart(2, '0')
-      const hh = d.getHours().toString().padStart(2, '0')
-      const mi = d.getMinutes().toString().padStart(2, '0')
-      const ss = d.getSeconds().toString().padStart(2, '0')
-      const ms2 = Math.floor(d.getMilliseconds() / 10).toString().padStart(2, '0')
-
-      if (allSameHour) {
-        return `${mi}:${ss}:${ms2}`
-      }
-      if (allSameDate) {
-        return `${hh}:${mi}:${ss}:${ms2}`
-      }
-      return `${mm}.${dd} ${hh}:${mi}:${ss}:${ms2}`
+    function isAggEnabled(value) {
+        return value && value !== 'off'
     }
 
-    return (value, index) => {
-      const d = parsed[index]
-      const label = formatLabel(d) || String(labels[index])
-      if (index === 0) return label
-      const prevLabel = formatLabel(parsed[index - 1])
-      return label === prevLabel ? '' : label
+    async function refreshLiveCharts() {
+        for (const item of charts) {
+            if (!item.toTs) {
+                await buildChart(item)
+            }
+        }
     }
-  }
 
-  function formatNumber(value) {
-    if (value === null || value === undefined) return ''
-    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-    return String(value)
-  }
-
-  async function buildChart(item) {
-    if (item.updating) return
-    item.updating = true
-    error = ''
-    try {
-      const params = {
-        topic: item.topic,
-        fields: item.field,
-        from_ts: item.fromTs || undefined,
-        to_ts: item.toTs || undefined
-      }
-      if (isAggEnabled(item.agg)) {
-        params.agg = item.agg
-        params.interval = item.interval
-      } else {
-        params.order = 'desc'
-        params.limit = 5000
-      }
-
-      const data = await api.history(params)
-      const rows = data.rows || []
-
-      const labels = isAggEnabled(item.agg)
-        ? rows.map(r => r.bucket)
-        : rows.map(r => r.ts).reverse()
-
-      const values = isAggEnabled(item.agg)
-        ? rows.map(r => (item.isJson ? r[item.field] : r.value))
-        : rows.map(r => valueFromRow(r, item.field, item.isJson)).reverse()
-
-      const tickCallback = makeTickCallback(labels)
-
-      await tick()
-      if (item.chart) {
-        item.chart.data.labels = labels
-        item.chart.data.datasets[0].data = values
-        item.chart.data.datasets[0].pointRadius = item.showPoints ? 3 : 0
-        item.chart.data.datasets[0].pointHoverRadius = item.showPoints ? 4 : 0
-        item.chart.options.scales = {
-          x: {
-            ticks: {
-              callback: tickCallback
+    async function loadSavedCharts() {
+        const saved = await api.listCharts()
+        charts = []
+        for (const item of saved) {
+            const cfg = typeof item.config === 'string' ? JSON.parse(item.config) : (item.config || {})
+            const topic = topics.find(t => t.topic === cfg.topic)
+            const normalizedAgg = cfg.agg === 'none' ? 'off' : (cfg.agg || 'avg')
+            const chart = {
+                id: item.id,
+                topic: cfg.topic,
+                field: cfg.field,
+                isJson: topic ? topic.is_json : true,
+                agg: normalizedAgg,
+                interval: cfg.interval || 'minute',
+                fromTs: cfg.fromTs || '',
+                toTs: cfg.toTs || '',
+                showPoints: cfg.showPoints !== false,
+                label: cfg.label || (isAggEnabled(normalizedAgg) ? `${cfg.field} (${normalizedAgg})` : `${cfg.field} (raw)`),
+                canvas: null,
+                chart: null,
+                menuOpen: false,
+                updating: false
             }
-          },
-          y: {
-            ticks: {
-              callback: formatNumber
-            }
-          }
+            charts = [...charts, chart]
+            await tick()
+            await buildChart(chart)
         }
-        item.chart.options.plugins = {
-          tooltip: {
-            callbacks: {
-              label: (ctx) => formatNumber(ctx.parsed.y)
-            }
-          }
-        }
-        item.chart.update('none')
-      } else {
-        item.chart = new Chart(item.canvas, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [
-              {
-                label: item.label,
-                data: values,
-                borderColor: '#111827',
-                backgroundColor: 'rgba(17,24,39,0.1)',
-                tension: 0.2,
-                pointRadius: item.showPoints ? 3 : 0,
-                pointHoverRadius: item.showPoints ? 4 : 0
-              }
-            ]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              x: {
-                ticks: {
-                  callback: tickCallback
-                }
-              },
-              y: {
-                ticks: {
-                  callback: formatNumber
-                }
-              }
-            },
-            plugins: {
-              tooltip: {
-                callbacks: {
-                  label: (ctx) => formatNumber(ctx.parsed.y)
-                }
-              }
-            }
-          }
+    }
+
+    function updateFields() {
+        const topic = topics.find(t => t.topic === selectedTopic)
+        fields = topic ? topic.fields : []
+        selectedField = fields[0] || ''
+    }
+
+    function valueFromRow(row, field, isJson) {
+        if (isJson) return row[field]
+        return row.value_float ?? row.value_int ?? row.value_bool ?? row.value_text ?? row.value_json
+    }
+
+    function makeTickCallback(labels) {
+        const parsed = labels.map((value) => {
+            const d = new Date(value)
+            if (Number.isNaN(d.getTime())) return null
+            return d
         })
-      }
-    } catch (err) {
-      error = err.message
-    } finally {
-      item.updating = false
+
+        const first = parsed.find(d => d)
+        const allSameYear = first ? parsed.every(d => d && d.getFullYear() === first.getFullYear()) : false
+        const allSameMonth = first ? parsed.every(d => d && d.getMonth() === first.getMonth()) : false
+        const allSameDate = first ? parsed.every(d => d && d.getDate() === first.getDate()) : false
+        const allSameHour = first ? parsed.every(d => d && d.getHours() === first.getHours()) : false
+        const allSameMinute = first ? parsed.every(d => d && d.getMinutes() === first.getMinutes()) : false
+        const allSameSecond = first ? parsed.every(d => d && d.getSeconds() === first.getSeconds()) : false
+        const allSameMillisecond = first ? parsed.every(d => d && d.getMilliseconds() === first.getMilliseconds()) : false
+
+        function formatLabel(d) {
+            if (!d) return ''
+            const parts = [
+                {same: allSameYear, value: d.getFullYear().toString(), sep: ''},
+                {same: allSameMonth, value: (d.getMonth() + 1).toString().padStart(2, '0'), sep: '-'},
+                {same: allSameDate, value: d.getDate().toString().padStart(2, '0'), sep: '-'},
+
+                {same: allSameHour, value: d.getHours().toString().padStart(2, '0'), sep: ' '},
+                {same: allSameMinute, value: d.getMinutes().toString().padStart(2, '0'), sep: ':'},
+                {same: allSameSecond, value: d.getSeconds().toString().padStart(2, '0'), sep: ':'},
+                {
+                    same: allSameMillisecond,
+                    value: Math.floor(d.getMilliseconds() / 10).toString().padStart(2, '0'),
+                    sep: '.'
+                },
+            ]
+
+            return parts
+                .filter(p => !p.same)
+                .map((p, i) => (i === 0 ? p.value : p.sep + p.value))
+                .join('')
+        }
+
+        return (value, index) => {
+            const d = parsed[index]
+            const label = formatLabel(d) || String(labels[index])
+            if (index === 0) return label
+            const prevLabel = formatLabel(parsed[index - 1])
+            return label === prevLabel ? '' : label
+        }
     }
+
+    function formatNumber(value) {
+        if (value === null || value === undefined) return ''
+        if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+        return String(value)
+    }
+
+  function formatTimestamp(value) {
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) return String(value)
+    const mm = (d.getMonth() + 1).toString().padStart(2, '0')
+    const dd = d.getDate().toString().padStart(2, '0')
+    const hh = d.getHours().toString().padStart(2, '0')
+    const mi = d.getMinutes().toString().padStart(2, '0')
+    const ss = d.getSeconds().toString().padStart(2, '0')
+    const ms2 = Math.floor(d.getMilliseconds() / 10).toString().padStart(2, '0')
+    return `${mm}.${dd} ${hh}:${mi}:${ss}:${ms2}`
   }
 
-  async function addChart() {
-    if (!selectedTopic || !selectedField) return
-    const topic = topics.find(t => t.topic === selectedTopic)
-    const config = {
-      topic: selectedTopic,
-      field: selectedField,
-      agg,
-      interval,
-      fromTs,
-      toTs,
-      showPoints,
-      label: isAggEnabled(agg) ? `${selectedField} (${agg})` : `${selectedField} (raw)`
-    }
-    const saved = await api.createChart({ name: config.label, config })
-    const item = {
-      id: saved.id,
-      topic: config.topic,
-      field: config.field,
-      isJson: topic ? topic.is_json : true,
-      agg: config.agg,
-      interval: config.interval,
-      fromTs: config.fromTs,
-      toTs: config.toTs,
-      showPoints: config.showPoints,
-      label: config.label,
-      canvas: null,
-      chart: null,
-      menuOpen: false,
-      updating: false
-    }
-    charts = [...charts, item]
-    await tick()
-    await buildChart(item)
-  }
+    async function buildChart(item) {
+        if (item.updating) return
+        item.updating = true
+        error = ''
+        try {
+            const params = {
+                topic: item.topic,
+                fields: item.field,
+                from_ts: item.fromTs || undefined,
+                to_ts: item.toTs || undefined
+            }
+            if (isAggEnabled(item.agg)) {
+                params.agg = item.agg
+                params.interval = item.interval
+            } else {
+                params.order = 'desc'
+                params.limit = 5000
+            }
 
-  async function removeChart(id) {
-    const item = charts.find(c => c.id === id)
-    if (item?.chart) item.chart.destroy()
-    charts = charts.filter(c => c.id !== id)
-    await api.deleteChart(id)
-  }
+            const data = await api.history(params)
+            const rows = data.rows || []
 
-  async function clearCharts() {
-    for (const item of charts) {
-      if (item.chart) item.chart.destroy()
-      await api.deleteChart(item.id)
+            const labels = isAggEnabled(item.agg)
+                ? rows.map(r => r.bucket)
+                : rows.map(r => r.ts).reverse()
+
+            const values = isAggEnabled(item.agg)
+                ? rows.map(r => (item.isJson ? r[item.field] : r.value))
+                : rows.map(r => valueFromRow(r, item.field, item.isJson)).reverse()
+
+            const tickCallback = makeTickCallback(labels)
+
+            await tick()
+            if (item.chart) {
+                item.chart.data.labels = labels
+                item.chart.data.datasets[0].data = values
+                item.chart.data.datasets[0].pointRadius = item.showPoints ? 3 : 0
+                item.chart.data.datasets[0].pointHoverRadius = item.showPoints ? 4 : 0
+                item.chart.options.scales = {
+                    x: {
+                        ticks: {
+                            callback: tickCallback
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            callback: formatNumber
+                        }
+                    }
+                }
+                item.chart.options.plugins = {
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => items.length ? formatTimestamp(items[0].label) : '',
+                            label: (ctx) => formatNumber(ctx.parsed.y)
+                        }
+                    }
+                }
+                item.chart.update('none')
+            } else {
+                item.chart = new Chart(item.canvas, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            {
+                                label: item.label,
+                                data: values,
+                                borderColor: '#111827',
+                                backgroundColor: 'rgba(17,24,39,0.1)',
+                                tension: 0.2,
+                                pointRadius: item.showPoints ? 3 : 0,
+                                pointHoverRadius: item.showPoints ? 4 : 0
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                ticks: {
+                                    callback: tickCallback
+                                }
+                            },
+                            y: {
+                                ticks: {
+                                    callback: formatNumber
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    title: (items) => items.length ? formatTimestamp(items[0].label) : '',
+                                    label: (ctx) => formatNumber(ctx.parsed.y)
+                                }
+                            }
+                        }
+                    }
+                })
+            }
+        } catch (err) {
+            error = err.message
+        } finally {
+            item.updating = false
+        }
     }
-    charts = []
-  }
 
-  async function togglePoints(item) {
-    item.showPoints = !item.showPoints
-    item.menuOpen = false
-    const config = {
-      topic: item.topic,
-      field: item.field,
-      agg: item.agg,
-      interval: item.interval,
-      fromTs: item.fromTs,
-      toTs: item.toTs,
-      showPoints: item.showPoints,
-      label: item.label
+    async function addChart() {
+        if (!selectedTopic || !selectedField) return
+        const topic = topics.find(t => t.topic === selectedTopic)
+        const config = {
+            topic: selectedTopic,
+            field: selectedField,
+            agg,
+            interval,
+            fromTs,
+            toTs,
+            showPoints,
+            label: isAggEnabled(agg) ? `${selectedField} (${agg})` : `${selectedField} (raw)`
+        }
+        const saved = await api.createChart({name: config.label, config})
+        const item = {
+            id: saved.id,
+            topic: config.topic,
+            field: config.field,
+            isJson: topic ? topic.is_json : true,
+            agg: config.agg,
+            interval: config.interval,
+            fromTs: config.fromTs,
+            toTs: config.toTs,
+            showPoints: config.showPoints,
+            label: config.label,
+            canvas: null,
+            chart: null,
+            menuOpen: false,
+            updating: false
+        }
+        charts = [...charts, item]
+        await tick()
+        await buildChart(item)
     }
-    await api.updateChart(item.id, { name: item.label, config })
-    charts = [...charts]
-    await buildChart(item)
-  }
 
-  function toggleMenu(item) {
-    item.menuOpen = !item.menuOpen
-    charts = [...charts]
-  }
+    async function removeChart(id) {
+        const item = charts.find(c => c.id === id)
+        if (item?.chart) item.chart.destroy()
+        charts = charts.filter(c => c.id !== id)
+        await api.deleteChart(id)
+    }
+
+    async function clearCharts() {
+        for (const item of charts) {
+            if (item.chart) item.chart.destroy()
+            await api.deleteChart(item.id)
+        }
+        charts = []
+    }
+
+    async function togglePoints(item) {
+        item.showPoints = !item.showPoints
+        item.menuOpen = false
+        const config = {
+            topic: item.topic,
+            field: item.field,
+            agg: item.agg,
+            interval: item.interval,
+            fromTs: item.fromTs,
+            toTs: item.toTs,
+            showPoints: item.showPoints,
+            label: item.label
+        }
+        await api.updateChart(item.id, {name: item.label, config})
+        charts = [...charts]
+        await buildChart(item)
+    }
+
+    function toggleMenu(item) {
+        item.menuOpen = !item.menuOpen
+        charts = [...charts]
+    }
 </script>
 
 <section class="card">
-  <h2>Графики</h2>
-  <div class="filters">
-    <div>
-      <label>Топик</label>
-      <select bind:value={selectedTopic} on:change={updateFields}>
-        {#each topics as t}
-          <option value={t.topic}>{t.topic}</option>
-        {/each}
-      </select>
+    <h2>Графики</h2>
+    <div class="filters">
+        <div>
+            <label>Топик</label>
+            <select bind:value={selectedTopic} on:change={updateFields}>
+                {#each topics as t}
+                    <option value={t.topic}>{t.topic}</option>
+                {/each}
+            </select>
+        </div>
+        <div>
+            <label>Поле</label>
+            <select bind:value={selectedField}>
+                {#each fields as field}
+                    <option value={field}>{field}</option>
+                {/each}
+            </select>
+        </div>
+        <div>
+            <label>Агрегация</label>
+            <select bind:value={agg}>
+                <option value="off">off</option>
+                <option value="avg">avg</option>
+                <option value="min">min</option>
+                <option value="max">max</option>
+            </select>
+        </div>
+        {#if isAggEnabled(agg)}
+            <div>
+                <label>Интервал</label>
+                <select bind:value={interval}>
+                    <option value="second">second</option>
+                    <option value="minute">minute</option>
+                    <option value="hour">hour</option>
+                    <option value="day">day</option>
+                </select>
+            </div>
+        {/if}
+        <div>
+            <label>С</label>
+            <input type="datetime-local" bind:value={fromTs}/>
+        </div>
+        <div>
+            <label>По</label>
+            <input type="datetime-local" bind:value={toTs}/>
+        </div>
+        <div class="actions">
+            <button on:click={addChart}>Добавить график</button>
+            <button class="ghost" on:click={clearCharts}>Очистить</button>
+        </div>
     </div>
-    <div>
-      <label>Поле</label>
-      <select bind:value={selectedField}>
-        {#each fields as field}
-          <option value={field}>{field}</option>
-        {/each}
-      </select>
-    </div>
-    <div>
-      <label>Агрегация</label>
-      <select bind:value={agg}>
-        <option value="none">Выключена</option>
-        <option value="avg">avg</option>
-        <option value="min">min</option>
-        <option value="max">max</option>
-      </select>
-    </div>
-    {#if isAggEnabled(agg)}
-      <div>
-        <label>Интервал</label>
-        <select bind:value={interval}>
-          <option value="minute">minute</option>
-          <option value="hour">hour</option>
-          <option value="day">day</option>
-        </select>
-      </div>
-    {/if}
-    <div>
-      <label>С</label>
-      <input type="datetime-local" bind:value={fromTs} />
-    </div>
-    <div>
-      <label>По</label>
-      <input type="datetime-local" bind:value={toTs} />
-    </div>
-    <div class="actions">
-      <button on:click={addChart}>Добавить график</button>
-      <button class="ghost" on:click={clearCharts}>Очистить</button>
-    </div>
-  </div>
 
-  {#if error}
-    <div class="error">{error}</div>
-  {/if}
+    {#if error}
+        <div class="error">{error}</div>
+    {/if}
 </section>
 
 <div class="grid">
-  {#each charts as item}
-    <section class="chart-card">
-      <div class="chart-head">
-        <div>
-          <div class="title">{item.topic}</div>
-          <div class="subtitle">{item.label}</div>
-        </div>
-        <div class="actions-right">
-          <div class="menu">
-            <button class="ghost" on:click={() => toggleMenu(item)}>...</button>
-            {#if item.menuOpen}
-              <div class="menu-panel">
-                <label>
-                  <input type="checkbox" checked={item.showPoints} on:change={() => togglePoints(item)} />
-                  Показывать точки
-                </label>
-              </div>
-            {/if}
-          </div>
-          <button class="ghost" on:click={() => removeChart(item.id)}>Удалить</button>
-        </div>
-      </div>
-      <div class="chart-area">
-        <canvas bind:this={item.canvas}></canvas>
-      </div>
-    </section>
-  {/each}
+    {#each charts as item}
+        <section class="chart-card">
+            <div class="chart-head">
+                <div>
+                    <div class="title">{item.topic}</div>
+                    <div class="subtitle">{item.label}</div>
+                </div>
+                <div class="actions-right">
+                    <div class="menu">
+                        <button class="ghost" on:click={() => toggleMenu(item)}>...</button>
+                        {#if item.menuOpen}
+                            <div class="menu-panel">
+                                <label>
+                                    <input type="checkbox" checked={item.showPoints}
+                                           on:change={() => togglePoints(item)}/>
+                                    Показывать точки
+                                </label>
+                            </div>
+                        {/if}
+                    </div>
+                    <button class="ghost" on:click={() => removeChart(item.id)}>Удалить</button>
+                </div>
+            </div>
+            <div class="chart-area">
+                <canvas bind:this={item.canvas}></canvas>
+            </div>
+        </section>
+    {/each}
 </div>
 
 <style>
-  .card {
-    background: #ffffff;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.06);
-  }
+    .card {
+        background: #ffffff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+    }
 
-  .filters {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
-    margin-bottom: 16px;
-    align-items: end;
-  }
+    .filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+        align-items: end;
+    }
 
-  label {
-    font-size: 13px;
-    color: #4b5563;
-  }
+    label {
+        font-size: 13px;
+        color: #4b5563;
+    }
 
-  select, input {
-    width: 100%;
-    padding: 8px 10px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-  }
+    select, input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+    }
 
-  button {
-    background: #111827;
-    color: white;
-    border: none;
-    padding: 10px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-  }
+    button {
+        background: #111827;
+        color: white;
+        border: none;
+        padding: 10px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+    }
 
-  .ghost {
-    background: transparent;
-    color: #111827;
-    border: 1px solid #e5e7eb;
-  }
+    .ghost {
+        background: transparent;
+        color: #111827;
+        border: 1px solid #e5e7eb;
+    }
 
-  .actions {
-    display: flex;
-    gap: 8px;
-  }
+    .actions {
+        display: flex;
+        gap: 8px;
+    }
 
-  .error {
-    color: #b91c1c;
-    margin-bottom: 8px;
-  }
+    .error {
+        color: #b91c1c;
+        margin-bottom: 8px;
+    }
 
-  .grid {
-    margin-top: 16px;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
+    .grid {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
 
-  .chart-card {
-    background: #ffffff;
-    padding: 16px;
-    border-radius: 12px;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.06);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
+    .chart-card {
+        background: #ffffff;
+        padding: 16px;
+        border-radius: 12px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
 
-  .chart-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-  }
+    .chart-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
 
-  .actions-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+    .actions-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
 
-  .title {
-    font-weight: 600;
-  }
+    .title {
+        font-weight: 600;
+    }
 
-  .subtitle {
-    font-size: 12px;
-    color: #6b7280;
-  }
+    .subtitle {
+        font-size: 12px;
+        color: #6b7280;
+    }
 
-  .chart-area {
-    height: 240px;
-  }
+    .chart-area {
+        height: 240px;
+    }
 
-  .menu {
-    position: relative;
-  }
+    .menu {
+        position: relative;
+    }
 
-  .menu-panel {
-    position: absolute;
-    right: 0;
-    top: 36px;
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 10px 12px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-    min-width: 160px;
-    z-index: 5;
-  }
+    .menu-panel {
+        position: absolute;
+        right: 0;
+        top: 36px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 10px 12px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+        min-width: 160px;
+        z-index: 5;
+    }
 </style>
