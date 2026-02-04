@@ -88,6 +88,54 @@
     return row.value_float ?? row.value_int ?? row.value_bool ?? row.value_text ?? row.value_json
   }
 
+  function makeTickCallback(labels) {
+    const parsed = labels.map((value) => {
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return null
+      return d
+    })
+
+    const first = parsed.find(d => d)
+    const allSameDate = first
+      ? parsed.every(d => d && d.getFullYear() === first.getFullYear() && d.getMonth() === first.getMonth() && d.getDate() === first.getDate())
+      : false
+    const allSameHour = first
+      ? parsed.every(d => d && d.getHours() === first.getHours())
+      : false
+
+    function formatLabel(d) {
+      if (!d) return ''
+      const mm = (d.getMonth() + 1).toString().padStart(2, '0')
+      const dd = d.getDate().toString().padStart(2, '0')
+      const hh = d.getHours().toString().padStart(2, '0')
+      const mi = d.getMinutes().toString().padStart(2, '0')
+      const ss = d.getSeconds().toString().padStart(2, '0')
+      const ms2 = Math.floor(d.getMilliseconds() / 10).toString().padStart(2, '0')
+
+      if (allSameHour) {
+        return `${mi}:${ss}:${ms2}`
+      }
+      if (allSameDate) {
+        return `${hh}:${mi}:${ss}:${ms2}`
+      }
+      return `${mm}.${dd} ${hh}:${mi}:${ss}:${ms2}`
+    }
+
+    return (value, index) => {
+      const d = parsed[index]
+      const label = formatLabel(d) || String(labels[index])
+      if (index === 0) return label
+      const prevLabel = formatLabel(parsed[index - 1])
+      return label === prevLabel ? '' : label
+    }
+  }
+
+  function formatNumber(value) {
+    if (value === null || value === undefined) return ''
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+    return String(value)
+  }
+
   async function buildChart(item) {
     if (item.updating) return
     item.updating = true
@@ -118,12 +166,33 @@
         ? rows.map(r => (item.isJson ? r[item.field] : r.value))
         : rows.map(r => valueFromRow(r, item.field, item.isJson)).reverse()
 
+      const tickCallback = makeTickCallback(labels)
+
       await tick()
       if (item.chart) {
         item.chart.data.labels = labels
         item.chart.data.datasets[0].data = values
         item.chart.data.datasets[0].pointRadius = item.showPoints ? 3 : 0
         item.chart.data.datasets[0].pointHoverRadius = item.showPoints ? 4 : 0
+        item.chart.options.scales = {
+          x: {
+            ticks: {
+              callback: tickCallback
+            }
+          },
+          y: {
+            ticks: {
+              callback: formatNumber
+            }
+          }
+        }
+        item.chart.options.plugins = {
+          tooltip: {
+            callbacks: {
+              label: (ctx) => formatNumber(ctx.parsed.y)
+            }
+          }
+        }
         item.chart.update('none')
       } else {
         item.chart = new Chart(item.canvas, {
@@ -144,7 +213,26 @@
           },
           options: {
             responsive: true,
-            maintainAspectRatio: false
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                ticks: {
+                  callback: tickCallback
+                }
+              },
+              y: {
+                ticks: {
+                  callback: formatNumber
+                }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => formatNumber(ctx.parsed.y)
+                }
+              }
+            }
           }
         })
       }
