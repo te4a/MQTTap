@@ -9,6 +9,7 @@
   export let onToggleMenu = () => {}
   export let onTogglePoints = () => {}
   export let onEdit = () => {}
+  export let onExport = () => {}
   export let onRemove = () => {}
   export let onResizeStart = () => {}
   export let onUpdateConfig = () => {}
@@ -34,6 +35,7 @@
         {#if item.menuOpen}
           <div class="menu-panel">
             <button class="ghost" on:click={() => onEdit(item)}>Редактировать</button>
+            <button class="ghost" on:click={() => onExport(item)}>Export JSON</button>
             <label class="toggle-row toggle-row-right">
               <span>Показывать точки</span>
               <input type="checkbox" checked={item.showPoints}
@@ -89,6 +91,7 @@
     flex-direction: column;
     gap: 12px;
     position: relative;
+    min-width: 0;
   }
 
   .chart-card.dragging {
@@ -119,6 +122,14 @@
 
   .chart-area {
     min-height: 200px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .chart-area canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
   }
 
   .resize-grip {

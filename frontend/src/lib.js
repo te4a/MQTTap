@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE || window.location.origin
+const API_BASE = import.meta.env.VITE_API_BASE || `${window.location.origin}/api`
 
 export function getToken() {
   return localStorage.getItem('token')
@@ -53,7 +53,19 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ username, password })
   }),
+  register: (payload) => request('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
   me: () => request('/auth/me'),
+  updateProfile: (payload) => request('/auth/profile', {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  }),
+  changePassword: (oldPassword, newPassword) => request('/auth/password', {
+    method: 'POST',
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+  }),
   getSettings: () => request('/settings'),
   getPublicSettings: () => request('/settings/public'),
   updateSettings: (payload) => request('/settings', {
@@ -81,5 +93,15 @@ export const api = {
     method: 'PUT',
     body: JSON.stringify(payload)
   }),
-  deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' })
+  deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
+  listInvites: () => request('/invites'),
+  createInvite: (payload) => request('/invites', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
+  updateInvite: (id, payload) => request(`/invites/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  }),
+  deleteInvite: (id) => request(`/invites/${id}`, { method: 'DELETE' })
 }

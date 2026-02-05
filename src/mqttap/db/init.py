@@ -70,6 +70,14 @@ async def _seed_roles_and_admin(conn) -> None:
             """
         )
     )
+    await conn.execute(
+        text(
+            """
+            INSERT INTO roles (id, name) VALUES (3, 'pending')
+            ON CONFLICT (id) DO NOTHING
+            """
+        )
+    )
 
     count = await conn.execute(text("SELECT COUNT(*) FROM users"))
     user_count = count.scalar_one()
@@ -117,4 +125,7 @@ async def _ensure_users_schema(conn) -> None:
         text(
             "CREATE UNIQUE INDEX IF NOT EXISTS users_username_uq ON users (username)"
         )
+    )
+    await conn.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false")
     )

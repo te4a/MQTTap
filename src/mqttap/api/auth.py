@@ -38,6 +38,8 @@ async def authenticate(username: str, password: str) -> str:
         row = (await conn.execute(sql, {"username": username})).mappings().first()
     if not row or not verify_password(password, row["password_hash"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    if row["role"] == "pending":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account pending approval")
     return _create_access_token(int(row["id"]), row["role"])
 
 

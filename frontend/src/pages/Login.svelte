@@ -1,4 +1,4 @@
-<script>
+﻿<script>
   import { createEventDispatcher } from 'svelte'
   import { api, setToken } from '../lib.js'
 
@@ -18,6 +18,11 @@
       error = err.message
     }
   }
+
+  function goRegister(event) {
+    event.preventDefault()
+    dispatch('navigate', '/register')
+  }
 </script>
 
 <div class="card">
@@ -30,6 +35,9 @@
   {#if error}
     <div class="error">{error}</div>
   {/if}
+  <div class="hint">
+    Нет аккаунта? <a href="/register" on:click={goRegister}>Регистрация</a>
+  </div>
 </div>
 
 <style>
@@ -55,5 +63,15 @@
 
   .error {
     font-size: 13px;
+  }
+
+  .hint {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #6b7280;
+  }
+
+  .hint a {
+    color: #111827;
   }
 </style>

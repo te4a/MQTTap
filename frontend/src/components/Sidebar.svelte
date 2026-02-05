@@ -1,4 +1,4 @@
-<script>
+﻿<script>
   export let loggedIn = false
   export let isAdmin = false
   export let navigate
@@ -6,7 +6,9 @@
   const links = [
     { href: '/', label: 'История' },
     { href: '/chart', label: 'Графики' },
+    { href: '/profile', label: 'Profile' },
     { href: '/settings', label: 'Настройки', adminOnly: true },
+    { href: '/invites', label: 'Invites', adminOnly: true },
     { href: '/users', label: 'Пользователи', adminOnly: true }
   ]
 

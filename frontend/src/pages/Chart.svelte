@@ -40,6 +40,8 @@
     let modalError = ''
     let modalFormulaError = ''
     let modalEditingId = null
+    let importInput
+    let windowResizeHandler = null
 
     let charts = []
     let nextId = 1
@@ -64,10 +66,19 @@
             error = err.message
         }
         refreshTimer = setInterval(refreshLiveCharts, refreshMs)
+        windowResizeHandler = () => {
+            charts.forEach((item) => {
+                if (item.chart) item.chart.resize()
+            })
+        }
+        window.addEventListener('resize', windowResizeHandler)
     })
 
     onDestroy(() => {
         if (refreshTimer) clearInterval(refreshTimer)
+        if (windowResizeHandler) {
+            window.removeEventListener('resize', windowResizeHandler)
+        }
     })
 
     function isAggEnabled(value) {
@@ -165,6 +176,60 @@
         addMenuOpen = !addMenuOpen
     }
 
+    function triggerImport() {
+        if (importInput) importInput.click()
+    }
+
+    async function handleImport(event) {
+        error = ''
+        const file = event.target.files?.[0]
+        if (!file) return
+        try {
+            const text = await file.text()
+            const raw = JSON.parse(text)
+            const config = raw?.config || raw
+            if (!config || !config.topic) {
+                throw new Error('Invalid chart JSON')
+            }
+            const topic = getTopicByName(config.topic)
+            if (!topic) {
+                throw new Error('Unknown topic')
+            }
+            const type = config.type || 'single'
+            const normalized = {
+                type,
+                topic: config.topic,
+                agg: config.agg || 'avg',
+                interval: config.interval || 'minute',
+                fromTs: config.fromTs || '',
+                toTs: config.toTs || '',
+                showPoints: config.showPoints !== false,
+                label: config.label || (type === 'single' ? `${config.field || 'field'} (${config.agg || 'avg'})` : (type === 'multi' ? `${config.topic} (multi)` : (config.formula || 'formula'))),
+                order: charts.length,
+                height: Number.isFinite(config.height) ? config.height : 240
+            }
+            if (type === 'single') {
+                if (!config.field) throw new Error('Field required')
+                normalized.field = config.field
+            } else if (type === 'multi') {
+                const channels = normalizeChannels(config.channels || (config.fields || []))
+                if (!channels.length) throw new Error('Channels required')
+                normalized.channels = channels.slice(0, 5)
+            } else if (type === 'formula') {
+                if (!config.formula || !Array.isArray(config.fields) || !config.fields.length) {
+                    throw new Error('Formula config required')
+                }
+                normalized.formula = config.formula
+                normalized.fields = config.fields
+            }
+            await createChartItem(normalized, topic)
+        } catch (err) {
+            error = err.message
+        } finally {
+            event.target.value = ''
+        }
+    }
+
     function openAddModal(type) {
         modalEditingId = null
         modalType = type
@@ -192,6 +257,21 @@
         modalOpen = false
         modalError = ''
         modalFormulaError = ''
+    }
+
+    function exportChart(item) {
+        const config = buildConfig(item)
+        const payload = {name: item.label, config}
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'})
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        const safeName = (item.label || 'chart').replace(/[^a-z0-9_-]+/gi, '_')
+        link.href = url
+        link.download = `${safeName}.json`
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        URL.revokeObjectURL(url)
     }
 
     function openEditModal(item) {
@@ -716,12 +796,21 @@
                         <button class="ghost" on:click={() => openAddModal('single')}>Обычный график</button>
                         <button class="ghost" on:click={() => openAddModal('multi')}>Многоканальный график</button>
                         <button class="ghost" on:click={() => openAddModal('formula')}>График по формуле</button>
+                        <button class="ghost" on:click={triggerImport}>Import JSON</button>
                     </div>
                 {/if}
             </div>
             <button class="ghost" on:click={clearCharts}>Очистить</button>
         </div>
     </div>
+
+    <input
+        class="file-input"
+        type="file"
+        accept="application/json"
+        bind:this={importInput}
+        on:change={handleImport}
+    />
 
     {#if error}
         <div class="error">{error}</div>
@@ -768,6 +857,7 @@
             onToggleMenu={toggleMenu}
             onTogglePoints={togglePoints}
             onEdit={openEditModal}
+            onExport={exportChart}
             onRemove={removeChart}
             onResizeStart={startResize}
             onUpdateConfig={updateChartConfig}
@@ -817,6 +907,11 @@
         display: grid;
         grid-template-columns: 1fr;
         gap: 16px;
+        min-width: 0;
+    }
+
+    .file-input {
+        display: none;
     }
 
 </style>

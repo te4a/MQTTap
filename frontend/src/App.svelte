@@ -3,18 +3,24 @@
   import Sidebar from './components/Sidebar.svelte'
   import Topbar from './components/Topbar.svelte'
   import Login from './pages/Login.svelte'
+  import Register from './pages/Register.svelte'
   import History from './pages/History.svelte'
   import Chart from './pages/Chart.svelte'
   import Settings from './pages/Settings.svelte'
   import Users from './pages/Users.svelte'
+  import Profile from './pages/Profile.svelte'
+  import Invites from './pages/Invites.svelte'
   import { api, getToken, clearToken } from './lib.js'
 
   const routes = {
     '/': History,
     '/chart': Chart,
+    '/profile': Profile,
+    '/invites': Invites,
     '/settings': Settings,
     '/users': Users,
-    '/login': Login
+    '/login': Login,
+    '/register': Register
   }
 
   let loggedIn = false
@@ -64,7 +70,11 @@
 
 {#if !loggedIn}
   <div class="login-only">
-    <Login on:navigate={(e) => navigate(e.detail)} />
+    {#if currentPath === '/register'}
+      <Register on:navigate={(e) => navigate(e.detail)} />
+    {:else}
+      <Login on:navigate={(e) => navigate(e.detail)} />
+    {/if}
   </div>
 {:else}
   <div class="app">

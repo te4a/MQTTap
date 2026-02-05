@@ -1,23 +1,33 @@
-import asyncio
+﻿import asyncio
 import json
 import logging
+import secrets
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from mqttap.api.auth import authenticate, require_admin, require_user
-from mqttap.api.schemas import LoginRequest, TokenResponse, UserInfo
+from mqttap.api.schemas import (
+    ChangePasswordRequest,
+    InviteCreateRequest,
+    InviteUpdateRequest,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UpdateProfileRequest,
+    UserInfo,
+)
 from mqttap.config import settings
 from mqttap.db.dynamic import get_table_columns, quote_ident
-from mqttap.security import hash_password
+from mqttap.security import hash_password, verify_password
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -39,6 +49,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="MQTTap", lifespan=lifespan)
+api_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 app.add_middleware(
@@ -50,18 +61,19 @@ app.add_middleware(
 )
 
 
-@app.get("/health")
+
+@api_router.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/auth/login", response_model=TokenResponse)
+@api_router.post("/auth/login", response_model=TokenResponse)
 async def login(payload: LoginRequest) -> TokenResponse:
     token = await authenticate(payload.username, payload.password)
     return TokenResponse(access_token=token)
 
 
-@app.get("/auth/me", response_model=UserInfo)
+@api_router.get("/auth/me", response_model=UserInfo)
 async def me(user=Depends(require_user)) -> UserInfo:
     sql = text(
         """
@@ -83,20 +95,112 @@ async def me(user=Depends(require_user)) -> UserInfo:
     )
 
 
-@app.get("/settings")
+@api_router.post("/auth/password")
+async def change_password(payload: ChangePasswordRequest, user=Depends(require_user)) -> dict[str, str]:
+    if not payload.old_password or not payload.new_password:
+        raise HTTPException(status_code=400, detail="old_password and new_password required")
+    sql = text("SELECT password_hash FROM users WHERE id = :id")
+    async with engine.begin() as conn:
+        row = (await conn.execute(sql, {"id": user["id"]})).mappings().first()
+        if not row or not verify_password(payload.old_password, row["password_hash"]):
+            raise HTTPException(status_code=400, detail="Invalid current password")
+        await conn.execute(
+            text("UPDATE users SET password_hash = :password_hash WHERE id = :id"),
+            {"id": user["id"], "password_hash": hash_password(payload.new_password)},
+        )
+    return {"status": "ok"}
+
+
+@api_router.post("/auth/register")
+async def register(payload: RegisterRequest) -> dict[str, str]:
+    if not payload.username or not payload.password:
+        raise HTTPException(status_code=400, detail="username and password required")
+
+    email = payload.email
+    invite_code = payload.invite
+    role_name = "pending"
+
+    async with engine.begin() as conn:
+        existing = (
+            await conn.execute(
+                text("SELECT 1 FROM users WHERE username = :username"),
+                {"username": payload.username},
+            )
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        if email:
+            existing_email = (
+                await conn.execute(
+                    text("SELECT 1 FROM users WHERE email = :email"),
+                    {"email": email},
+                )
+            ).first()
+            if existing_email:
+                raise HTTPException(status_code=400, detail="Email already exists")
+
+        if invite_code:
+            invite = (
+                await conn.execute(
+                    text(
+                        """
+                        SELECT code, role_name, is_active
+                        FROM invites
+                        WHERE code = :code
+                        """
+                    ),
+                    {"code": invite_code},
+                )
+            ).mappings().first()
+            if not invite or not invite["is_active"]:
+                raise HTTPException(status_code=400, detail="Invalid invite")
+            if invite["role_name"] not in ("admin", "user"):
+                raise HTTPException(status_code=400, detail="Invalid invite role")
+            role_name = invite["role_name"]
+
+        await conn.execute(
+            text(
+                """
+                INSERT INTO users (username, email, password_hash, role_id)
+                VALUES (:username, :email, :password_hash, (SELECT id FROM roles WHERE name = :role))
+                """
+            ),
+            {
+                "username": payload.username,
+                "email": email,
+                "password_hash": hash_password(payload.password),
+                "role": role_name,
+            },
+        )
+
+    return {"status": "ok"}
+
+
+@api_router.put("/auth/profile")
+async def update_profile(payload: UpdateProfileRequest, user=Depends(require_user)) -> dict[str, str]:
+    email = payload.email
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE users SET email = :email WHERE id = :id"),
+            {"id": user["id"], "email": email},
+        )
+    return {"status": "ok"}
+
+
+@api_router.get("/settings")
 async def get_settings(user=Depends(require_admin)) -> dict[str, Any]:
     data = await load_settings(engine)
     data.pop("database_dsn", None)
     return data
 
 
-@app.get("/settings/public")
+@api_router.get("/settings/public")
 async def get_public_settings(user=Depends(require_user)) -> dict[str, Any]:
     data = await load_settings(engine)
     return {"float_precision": data.get("float_precision")}
 
 
-@app.put("/settings")
+@api_router.put("/settings")
 async def update_settings(payload: dict[str, Any], user=Depends(require_admin)) -> dict[str, Any]:
     allowed = {
         "mqtt_host",
@@ -113,7 +217,7 @@ async def update_settings(payload: dict[str, Any], user=Depends(require_admin)) 
     return filtered
 
 
-@app.get("/users")
+@api_router.get("/users")
 async def list_users(user=Depends(require_admin)) -> list[dict[str, Any]]:
     sql = text(
         """
@@ -128,7 +232,7 @@ async def list_users(user=Depends(require_admin)) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-@app.post("/users")
+@api_router.post("/users")
 async def create_user(payload: dict[str, Any], user=Depends(require_admin)) -> dict[str, Any]:
     username = payload.get("username")
     email = payload.get("email")
@@ -136,7 +240,7 @@ async def create_user(payload: dict[str, Any], user=Depends(require_admin)) -> d
     role = payload.get("role", "user")
     if not username or not password:
         raise HTTPException(status_code=400, detail="username and password required")
-    if role not in ("admin", "user"):
+    if role not in ("admin", "user", "pending"):
         raise HTTPException(status_code=400, detail="invalid role")
     sql = text(
         """
@@ -160,13 +264,13 @@ async def create_user(payload: dict[str, Any], user=Depends(require_admin)) -> d
     return dict(row)
 
 
-@app.put("/users/{user_id}")
+@api_router.put("/users/{user_id}")
 async def update_user(user_id: int, payload: dict[str, Any], user=Depends(require_admin)) -> dict[str, Any]:
     username = payload.get("username")
     email = payload.get("email")
     password = payload.get("password")
     role = payload.get("role")
-    if role and role not in ("admin", "user"):
+    if role and role not in ("admin", "user", "pending"):
         raise HTTPException(status_code=400, detail="invalid role")
     updates = []
     params: dict[str, Any] = {"user_id": user_id}
@@ -199,7 +303,7 @@ async def update_user(user_id: int, payload: dict[str, Any], user=Depends(requir
     return dict(row)
 
 
-@app.delete("/users/{user_id}")
+@api_router.delete("/users/{user_id}")
 async def delete_user(user_id: int, user=Depends(require_admin)) -> dict[str, str]:
     if user_id == user["id"]:
         raise HTTPException(status_code=400, detail="Нельзя удалить самого себя")
@@ -209,7 +313,96 @@ async def delete_user(user_id: int, user=Depends(require_admin)) -> dict[str, st
     return {"status": "ok"}
 
 
-@app.get("/charts")
+@api_router.get("/invites")
+async def list_invites(user=Depends(require_admin)) -> list[dict[str, Any]]:
+    sql = text(
+        """
+        SELECT id, code, role_name, is_active, created_by, created_at, updated_at
+        FROM invites
+        ORDER BY id
+        """
+    )
+    async with engine.begin() as conn:
+        rows = (await conn.execute(sql)).mappings().all()
+    return [dict(row) for row in rows]
+
+
+@api_router.post("/invites")
+async def create_invite(payload: InviteCreateRequest, user=Depends(require_admin)) -> dict[str, Any]:
+    if payload.role_name not in ("admin", "user"):
+        raise HTTPException(status_code=400, detail="invalid role")
+    code = payload.code or secrets.token_urlsafe(8)
+    async with engine.begin() as conn:
+        existing = (
+            await conn.execute(text("SELECT 1 FROM invites WHERE code = :code"), {"code": code})
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Invite code already exists")
+        row = (
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO invites (code, role_name, is_active, created_by)
+                    VALUES (:code, :role_name, :is_active, :created_by)
+                    RETURNING id, code, role_name, is_active, created_by, created_at, updated_at
+                    """
+                ),
+                {
+                    "code": code,
+                    "role_name": payload.role_name,
+                    "is_active": payload.is_active,
+                    "created_by": user["id"],
+                },
+            )
+        ).mappings().first()
+    return dict(row)
+
+
+@api_router.put("/invites/{invite_id}")
+async def update_invite(
+    invite_id: int,
+    payload: InviteUpdateRequest,
+    user=Depends(require_admin),
+) -> dict[str, Any]:
+    updates = []
+    params: dict[str, Any] = {"invite_id": invite_id}
+    if payload.code is not None:
+        updates.append("code = :code")
+        params["code"] = payload.code
+    if payload.role_name is not None:
+        if payload.role_name not in ("admin", "user"):
+            raise HTTPException(status_code=400, detail="invalid role")
+        updates.append("role_name = :role_name")
+        params["role_name"] = payload.role_name
+    if payload.is_active is not None:
+        updates.append("is_active = :is_active")
+        params["is_active"] = payload.is_active
+    if not updates:
+        raise HTTPException(status_code=400, detail="no fields to update")
+
+    sql = text(
+        f"""
+        UPDATE invites
+        SET {', '.join(updates)}
+        WHERE id = :invite_id
+        RETURNING id, code, role_name, is_active, created_by, created_at, updated_at
+        """
+    )
+    async with engine.begin() as conn:
+        row = (await conn.execute(sql, params)).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    return dict(row)
+
+
+@api_router.delete("/invites/{invite_id}")
+async def delete_invite(invite_id: int, user=Depends(require_admin)) -> dict[str, str]:
+    async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM invites WHERE id = :id"), {"id": invite_id})
+    return {"status": "ok"}
+
+
+@api_router.get("/charts")
 async def list_charts(user=Depends(require_user)) -> list[dict[str, Any]]:
     sql = text(
         """
@@ -233,7 +426,7 @@ async def list_charts(user=Depends(require_user)) -> list[dict[str, Any]]:
     return result
 
 
-@app.post("/charts")
+@api_router.post("/charts")
 async def create_chart(payload: dict[str, Any], user=Depends(require_user)) -> dict[str, Any]:
     if "config" not in payload:
         raise HTTPException(status_code=400, detail="config required")
@@ -264,7 +457,7 @@ async def create_chart(payload: dict[str, Any], user=Depends(require_user)) -> d
     return item
 
 
-@app.put("/charts/{chart_id}")
+@api_router.put("/charts/{chart_id}")
 async def update_chart(chart_id: int, payload: dict[str, Any], user=Depends(require_user)) -> dict[str, Any]:
     if "config" not in payload:
         raise HTTPException(status_code=400, detail="config required")
@@ -299,7 +492,7 @@ async def update_chart(chart_id: int, payload: dict[str, Any], user=Depends(requ
     return item
 
 
-@app.delete("/charts/{chart_id}")
+@api_router.delete("/charts/{chart_id}")
 async def delete_chart(chart_id: int, user=Depends(require_user)) -> dict[str, str]:
     sql = text(
         """
@@ -325,7 +518,7 @@ def _parse_fields(value: str | None) -> list[str] | None:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
-@app.get("/topics")
+@api_router.get("/topics")
 async def list_topics(user=Depends(require_user)) -> list[dict[str, Any]]:
     sql = text("SELECT topic, table_name, is_json FROM topic_registry ORDER BY topic")
     async with engine.begin() as conn:
@@ -346,7 +539,7 @@ async def list_topics(user=Depends(require_user)) -> list[dict[str, Any]]:
     return result
 
 
-@app.get("/history")
+@api_router.get("/history")
 async def history(
     topic: str,
     fields: str | None = Query(None),
@@ -499,6 +692,9 @@ async def _history_aggregate(
     return {"table": table_name, "is_json": is_json, "rows": [dict(row) for row in rows]}
 
 
+app.include_router(api_router, prefix="/api")
+
+
 _dist_path = (Path.cwd() / "frontend" / "dist").resolve()
 _assets_path = _dist_path / "assets"
 _index_path = _dist_path / "index.html"
@@ -518,6 +714,8 @@ if _dist_path.exists() and _index_path.exists():
 
     @app.get("/{path:path}")
     async def frontend_fallback(path: str) -> FileResponse:
+        if path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
         return FileResponse(_index_path)
 else:
     @app.get("/")
