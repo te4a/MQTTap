@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     float_precision: int = 3
     jwt_secret: str = "change-me"
     jwt_issuer: str = "mqttap"
-    jwt_exp_minutes: int = 60
+    jwt_exp_minutes: int = 480
     cors_origins: str = "localhost,127.0.0.1"
     admin_username: str | None = None
     admin_email: str | None = None
