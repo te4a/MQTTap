@@ -79,13 +79,6 @@
 {/if}
 
 <style>
-  :global(body) {
-    margin: 0;
-    font-family: system-ui, sans-serif;
-    background: #f4f2ee;
-    color: #1f2328;
-  }
-
   .login-only {
     min-height: 100vh;
     display: flex;

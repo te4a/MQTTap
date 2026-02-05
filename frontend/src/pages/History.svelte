@@ -139,40 +139,14 @@
 </section>
 
 <style>
-  .card {
-    background: #ffffff;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.06);
-  }
-
   .filters {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 12px;
     margin-bottom: 16px;
   }
-
-  label {
-    font-size: 13px;
-    color: #4b5563;
-  }
-
-  select, input {
-    width: 100%;
-    padding: 8px 10px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-  }
-
   button {
     align-self: end;
-    background: #111827;
-    color: white;
-    border: none;
-    padding: 10px 12px;
-    border-radius: 8px;
-    cursor: pointer;
   }
 
   .fields {
@@ -197,7 +171,6 @@
   }
 
   .error {
-    color: #b91c1c;
     margin-bottom: 8px;
   }
 
@@ -205,23 +178,4 @@
     color: #9ca3af;
   }
 
-  .table-wrap {
-    overflow: auto;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  th, td {
-    padding: 8px 10px;
-    border-bottom: 1px solid #e5e7eb;
-    font-size: 13px;
-  }
-
-  th {
-    text-align: left;
-    background: #f9fafb;
-  }
 </style>

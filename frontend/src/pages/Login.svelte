@@ -47,22 +47,13 @@
 
   input {
     padding: 10px 12px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
   }
 
   button {
     margin-top: 8px;
-    background: #111827;
-    color: white;
-    border: none;
-    padding: 10px 12px;
-    border-radius: 8px;
-    cursor: pointer;
   }
 
   .error {
-    color: #b91c1c;
     font-size: 13px;
   }
 </style>

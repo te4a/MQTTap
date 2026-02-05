@@ -165,10 +165,6 @@
 
 <style>
   .card {
-    background: #ffffff;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.06);
     margin-bottom: 16px;
   }
 
@@ -177,26 +173,6 @@
     grid-template-columns: 140px 1fr;
     gap: 12px;
     margin-bottom: 12px;
-  }
-
-  input, select {
-    padding: 8px 10px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-  }
-
-  button {
-    background: #111827;
-    color: white;
-    border: none;
-    padding: 10px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-  }
-
-  button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   .ghost {
@@ -223,32 +199,10 @@
 
   .ok {
     margin-top: 10px;
-    color: #15803d;
   }
 
   .error {
     margin-top: 10px;
-    color: #b91c1c;
-  }
-
-  .table-wrap {
-    overflow: auto;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  th, td {
-    padding: 8px 10px;
-    border-bottom: 1px solid #e5e7eb;
-    font-size: 13px;
-  }
-
-  th {
-    text-align: left;
-    background: #f9fafb;
   }
 
   tbody tr:last-child td {

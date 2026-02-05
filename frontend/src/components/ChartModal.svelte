@@ -1,0 +1,254 @@
+<script>
+  export let open = false
+  export let modalType = 'single'
+  export let topics = []
+  export let modalTopic = ''
+  export let modalFields = []
+  export let modalField = ''
+  export let modalSelectedFields = []
+  export let modalFormulaFields = ''
+  export let modalFormula = ''
+  export let modalAgg = 'avg'
+  export let modalInterval = 'minute'
+  export let modalFromTs = ''
+  export let modalToTs = ''
+  export let modalShowPoints = true
+  export let modalError = ''
+  export let modalFormulaError = ''
+  export let isAggEnabled = () => false
+  export let onClose = () => {}
+  export let onSubmit = () => {}
+  export let onTopicChange = () => {}
+  export let onToggleField = () => {}
+  export let onValidateFormula = () => {}
+  export let title = 'Добавить график'
+  export let submitLabel = 'Создать'
+</script>
+
+{#if open}
+  <div class="modal-backdrop" on:click={onClose}>
+    <div class="modal" on:click|stopPropagation>
+      <div class="modal-header">
+        <h3>{title}</h3>
+        <button class="ghost" on:click={onClose}>×</button>
+      </div>
+      <div class="modal-grid">
+        <div>
+          <label>Тип</label>
+          <div class="modal-type">{modalType}</div>
+        </div>
+        <div>
+          <label>Топик</label>
+          <select bind:value={modalTopic} on:change={onTopicChange}>
+            {#each topics as t}
+              <option value={t.topic}>{t.topic}</option>
+            {/each}
+          </select>
+        </div>
+        {#if modalType === 'single'}
+          <div>
+            <label>Поле</label>
+            <select bind:value={modalField}>
+              {#each modalFields as field}
+                <option value={field}>{field}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
+        {#if modalType === 'multi'}
+          <div class="modal-span">
+            <label>Поля (до 5)</label>
+            <div class="field-grid">
+              {#each modalFields as field}
+                <label class="field-option">
+                  <input
+                    type="checkbox"
+                    checked={modalSelectedFields.includes(field)}
+                    on:change={() => onToggleField(field)}
+                  />
+                  {field}
+                </label>
+              {/each}
+            </div>
+          </div>
+        {/if}
+        {#if modalType === 'formula'}
+          <div class="modal-span">
+            <label>Поля (через запятую)</label>
+            <input
+              type="text"
+              bind:value={modalFormulaFields}
+              class:input-error={!!modalFormulaError}
+              on:input={onValidateFormula}
+            />
+          </div>
+          <div class="modal-span">
+            <label>Формула (+ - * /)</label>
+            <input
+              type="text"
+              bind:value={modalFormula}
+              class:input-error={!!modalFormulaError}
+              on:input={onValidateFormula}
+            />
+          </div>
+          <div class="modal-span hint">
+            Доступные поля: {modalFields.join(', ')}
+          </div>
+          {#if modalFormulaError}
+            <div class="modal-span error-text">{modalFormulaError}</div>
+          {/if}
+        {/if}
+        <div>
+          <label>Агрегация</label>
+          <select bind:value={modalAgg}>
+            <option value="off">off</option>
+            <option value="avg">avg</option>
+            <option value="min">min</option>
+            <option value="max">max</option>
+          </select>
+        </div>
+        {#if isAggEnabled(modalAgg)}
+          <div>
+            <label>Интервал</label>
+            <select bind:value={modalInterval}>
+              <option value="second">second</option>
+              <option value="minute">minute</option>
+              <option value="hour">hour</option>
+              <option value="day">day</option>
+            </select>
+          </div>
+        {/if}
+        <div>
+          <label>С</label>
+          <input type="datetime-local" bind:value={modalFromTs}/>
+        </div>
+        <div>
+          <label>По</label>
+          <input type="datetime-local" bind:value={modalToTs}/>
+        </div>
+        <div class="modal-span modal-checkbox">
+          <label class="checkbox checkbox-right">
+            <span>Показывать точки</span>
+            <input type="checkbox" bind:checked={modalShowPoints} />
+          </label>
+        </div>
+      </div>
+      {#if modalError}
+        <div class="error">{modalError}</div>
+      {/if}
+      <div class="modal-actions">
+        <button on:click={onSubmit}>{submitLabel}</button>
+        <button class="ghost" on:click={onClose}>Отмена</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 30;
+    padding: 20px;
+  }
+
+  .modal {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 16px 18px;
+    width: min(720px, 100%);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    display: grid;
+    gap: 12px;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .modal-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .modal-span {
+    grid-column: 1 / -1;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  .modal-type {
+    padding: 8px 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+  }
+
+  .field-grid {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .field-option {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 13px;
+  }
+
+  .checkbox {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .checkbox input {
+    margin: 0;
+  }
+
+  .checkbox-right {
+    display: inline-flex;
+    justify-content: flex-start;
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .modal-checkbox {
+    justify-self: start;
+  }
+
+  .hint {
+    color: #6b7280;
+    font-size: 12px;
+  }
+
+  .input-error {
+    border-color: #dc2626;
+    background: #fef2f2;
+  }
+
+  .error-text {
+    color: #dc2626;
+    font-size: 12px;
+  }
+
+  .error {
+    color: #b91c1c;
+  }
+
+</style>
