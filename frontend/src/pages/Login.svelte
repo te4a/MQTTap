@@ -1,6 +1,7 @@
 ﻿<script>
   import { createEventDispatcher } from 'svelte'
   import { api, setToken } from '../lib.js'
+  import { availableLangs, lang, setLang, t } from '../i18n.js'
 
   const dispatch = createEventDispatcher()
   let username = ''
@@ -26,17 +27,24 @@
 </script>
 
 <div class="card">
-  <h2>Вход</h2>
-  <label>Username</label>
-  <input type="text" bind:value={username} placeholder="admin" />
-  <label>Пароль</label>
+  <div class="lang-row">
+    <select class="lang-select" bind:value={$lang} on:change={(e) => setLang(e.target.value)}>
+      {#each availableLangs as item}
+        <option value={item.value}>{item.label}</option>
+      {/each}
+    </select>
+  </div>
+  <h2>{t('login.title', $lang)}</h2>
+  <label>{t('common.username', $lang)}</label>
+  <input type="text" bind:value={username} placeholder={t('placeholders.username', $lang)} />
+  <label>{t('common.password', $lang)}</label>
   <input type="password" bind:value={password} />
-  <button on:click={submit}>Войти</button>
+  <button on:click={submit}>{t('login.submit', $lang)}</button>
   {#if error}
     <div class="error">{error}</div>
   {/if}
   <div class="hint">
-    Нет аккаунта? <a href="/register" on:click={goRegister}>Регистрация</a>
+    {t('login.noAccount', $lang)} <a href="/register" on:click={goRegister}>{t('login.register', $lang)}</a>
   </div>
 </div>
 
@@ -51,6 +59,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    position: relative;
   }
 
   input {
@@ -73,5 +82,19 @@
 
   .hint a {
     color: #111827;
+  }
+
+  .lang-row {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
+
+  .lang-select {
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    font-size: 12px;
   }
 </style>

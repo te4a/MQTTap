@@ -1,23 +1,20 @@
-<script>
-  import { onMount } from 'svelte'
+﻿<script>
   import { api } from '../lib.js'
+  import { lang, t } from '../i18n.js'
 
   let topics = []
   let selectedTopic = ''
   let fields = []
-  let selectedFields = new Set()
+  let selectedFields = []
+  let fromTs = ''
+  let toTs = ''
+  let agg = 'off'
+  let interval = 'minute'
   let rows = []
   let error = ''
   let loading = false
 
-  let fromTs = ''
-  let toTs = ''
-  let order = 'desc'
-
-  onMount(loadTopics)
-
   async function loadTopics() {
-    error = ''
     try {
       topics = await api.topics()
       if (topics.length) {
@@ -32,29 +29,30 @@
   function updateFields() {
     const topic = topics.find(t => t.topic === selectedTopic)
     fields = topic ? topic.fields : []
-    selectedFields = new Set(fields)
+    selectedFields = fields.slice(0, 3)
   }
 
   function toggleField(field) {
-    const next = new Set(selectedFields)
-    if (next.has(field)) next.delete(field)
-    else next.add(field)
-    selectedFields = next
+    if (selectedFields.includes(field)) {
+      selectedFields = selectedFields.filter(value => value !== field)
+    } else {
+      selectedFields = [...selectedFields, field]
+    }
   }
 
   async function loadHistory() {
-    if (!selectedTopic) return
-    loading = true
     error = ''
+    loading = true
     try {
-      const payload = {
+      const params = {
         topic: selectedTopic,
-        fields: Array.from(selectedFields).join(','),
+        fields: selectedFields.join(','),
         from_ts: fromTs || undefined,
         to_ts: toTs || undefined,
-        order
+        agg: agg !== 'off' ? agg : undefined,
+        interval: agg !== 'off' ? interval : undefined
       }
-      const data = await api.history(payload)
+      const data = await api.history(params)
       rows = data.rows || []
     } catch (err) {
       error = err.message
@@ -62,50 +60,61 @@
       loading = false
     }
   }
+
+  loadTopics()
 </script>
 
 <section class="card">
-  <h2>История значений</h2>
-
+  <h2>{t('history.title', $lang)}</h2>
   <div class="filters">
     <div>
-      <label>Топик</label>
+      <label>{t('charts.topic', $lang)}</label>
       <select bind:value={selectedTopic} on:change={updateFields}>
         {#each topics as t}
           <option value={t.topic}>{t.topic}</option>
         {/each}
       </select>
     </div>
-
     <div class="fields">
-      <label>Поля</label>
+      <label>{t('charts.fields', $lang)}</label>
       <div class="field-list">
         {#each fields as field}
           <label class="chip">
-            <input type="checkbox" checked={selectedFields.has(field)} on:change={() => toggleField(field)} />
+            <input type="checkbox" checked={selectedFields.includes(field)} on:change={() => toggleField(field)} />
             {field}
           </label>
         {/each}
       </div>
     </div>
-
     <div>
-      <label>С</label>
+      <label>{t('common.aggregation', $lang)}</label>
+      <select bind:value={agg}>
+        <option value="off">{t('agg.off', $lang)}</option>
+        <option value="avg">{t('agg.avg', $lang)}</option>
+        <option value="min">{t('agg.min', $lang)}</option>
+        <option value="max">{t('agg.max', $lang)}</option>
+      </select>
+    </div>
+    {#if agg !== 'off'}
+      <div>
+        <label>{t('common.interval', $lang)}</label>
+        <select bind:value={interval}>
+          <option value="second">{t('interval.second', $lang)}</option>
+          <option value="minute">{t('interval.minute', $lang)}</option>
+          <option value="hour">{t('interval.hour', $lang)}</option>
+          <option value="day">{t('interval.day', $lang)}</option>
+        </select>
+      </div>
+    {/if}
+    <div>
+      <label>{t('common.from', $lang)}</label>
       <input type="datetime-local" bind:value={fromTs} />
     </div>
     <div>
-      <label>По</label>
+      <label>{t('common.to', $lang)}</label>
       <input type="datetime-local" bind:value={toTs} />
     </div>
-    <div>
-      <label>Порядок</label>
-      <select bind:value={order}>
-        <option value="desc">Новые сверху</option>
-        <option value="asc">Старые сверху</option>
-      </select>
-    </div>
-
-    <button on:click={loadHistory} disabled={loading}>Загрузить</button>
+    <button on:click={loadHistory} disabled={loading}>{t('history.load', $lang)}</button>
   </div>
 
   {#if error}
@@ -113,7 +122,7 @@
   {/if}
 
   {#if rows.length === 0}
-    <div class="empty">Нет данных</div>
+    <div class="empty">{t('history.noData', $lang)}</div>
   {:else}
     <div class="table-wrap">
       <table>
@@ -145,6 +154,7 @@
     gap: 12px;
     margin-bottom: 16px;
   }
+
   button {
     align-self: end;
   }
@@ -177,5 +187,4 @@
   .empty {
     color: #9ca3af;
   }
-
 </style>

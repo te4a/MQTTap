@@ -1,4 +1,6 @@
-<script>
+﻿<script>
+  import { lang, t } from '../i18n.js'
+
   export let open = false
   export let modalType = 'single'
   export let topics = []
@@ -21,8 +23,8 @@
   export let onTopicChange = () => {}
   export let onToggleField = () => {}
   export let onValidateFormula = () => {}
-  export let title = 'Добавить график'
-  export let submitLabel = 'Создать'
+  export let title = ''
+  export let submitLabel = ''
 </script>
 
 {#if open}
@@ -34,11 +36,19 @@
       </div>
       <div class="modal-grid">
         <div>
-          <label>Тип</label>
-          <div class="modal-type">{modalType}</div>
+          <label>{t('common.type', $lang)}</label>
+          <div class="modal-type">
+            {#if modalType === 'single'}
+              {t('charts.addSingle', $lang)}
+            {:else if modalType === 'multi'}
+              {t('charts.addMulti', $lang)}
+            {:else}
+              {t('charts.addFormula', $lang)}
+            {/if}
+          </div>
         </div>
         <div>
-          <label>Топик</label>
+          <label>{t('charts.topic', $lang)}</label>
           <select bind:value={modalTopic} on:change={onTopicChange}>
             {#each topics as t}
               <option value={t.topic}>{t.topic}</option>
@@ -47,7 +57,7 @@
         </div>
         {#if modalType === 'single'}
           <div>
-            <label>Поле</label>
+            <label>{t('charts.field', $lang)}</label>
             <select bind:value={modalField}>
               {#each modalFields as field}
                 <option value={field}>{field}</option>
@@ -57,7 +67,7 @@
         {/if}
         {#if modalType === 'multi'}
           <div class="modal-span">
-            <label>Поля (до 5)</label>
+            <label>{t('charts.fieldsUpTo', $lang)}</label>
             <div class="field-grid">
               {#each modalFields as field}
                 <label class="field-option">
@@ -74,7 +84,7 @@
         {/if}
         {#if modalType === 'formula'}
           <div class="modal-span">
-            <label>Поля (через запятую)</label>
+            <label>{t('charts.fields', $lang)}</label>
             <input
               type="text"
               bind:value={modalFormulaFields}
@@ -83,7 +93,7 @@
             />
           </div>
           <div class="modal-span">
-            <label>Формула (+ - * /)</label>
+            <label>{t('charts.formula', $lang)}</label>
             <input
               type="text"
               bind:value={modalFormula}
@@ -92,43 +102,43 @@
             />
           </div>
           <div class="modal-span hint">
-            Доступные поля: {modalFields.join(', ')}
+            {t('charts.formulaHint', $lang)}: {modalFields.join(', ')}
           </div>
           {#if modalFormulaError}
             <div class="modal-span error-text">{modalFormulaError}</div>
           {/if}
         {/if}
         <div>
-          <label>Агрегация</label>
+          <label>{t('common.aggregation', $lang)}</label>
           <select bind:value={modalAgg}>
-            <option value="off">off</option>
-            <option value="avg">avg</option>
-            <option value="min">min</option>
-            <option value="max">max</option>
+            <option value="off">{t('agg.off', $lang)}</option>
+            <option value="avg">{t('agg.avg', $lang)}</option>
+            <option value="min">{t('agg.min', $lang)}</option>
+            <option value="max">{t('agg.max', $lang)}</option>
           </select>
         </div>
         {#if isAggEnabled(modalAgg)}
           <div>
-            <label>Интервал</label>
+            <label>{t('common.interval', $lang)}</label>
             <select bind:value={modalInterval}>
-              <option value="second">second</option>
-              <option value="minute">minute</option>
-              <option value="hour">hour</option>
-              <option value="day">day</option>
+              <option value="second">{t('interval.second', $lang)}</option>
+              <option value="minute">{t('interval.minute', $lang)}</option>
+              <option value="hour">{t('interval.hour', $lang)}</option>
+              <option value="day">{t('interval.day', $lang)}</option>
             </select>
           </div>
         {/if}
         <div>
-          <label>С</label>
+          <label>{t('common.from', $lang)}</label>
           <input type="datetime-local" bind:value={modalFromTs}/>
         </div>
         <div>
-          <label>По</label>
+          <label>{t('common.to', $lang)}</label>
           <input type="datetime-local" bind:value={modalToTs}/>
         </div>
         <div class="modal-span modal-checkbox">
           <label class="checkbox checkbox-right">
-            <span>Показывать точки</span>
+            <span>{t('common.showPoints', $lang)}</span>
             <input type="checkbox" bind:checked={modalShowPoints} />
           </label>
         </div>
@@ -138,7 +148,7 @@
       {/if}
       <div class="modal-actions">
         <button on:click={onSubmit}>{submitLabel}</button>
-        <button class="ghost" on:click={onClose}>Отмена</button>
+        <button class="ghost" on:click={onClose}>{t('common.cancel', $lang)}</button>
       </div>
     </div>
   </div>
@@ -250,5 +260,4 @@
   .error {
     color: #b91c1c;
   }
-
 </style>

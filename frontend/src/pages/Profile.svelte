@@ -1,5 +1,6 @@
-<script>
+﻿<script>
   import { api } from '../lib.js'
+  import { lang, t } from '../i18n.js'
 
   let email = ''
   let currentPassword = ''
@@ -22,7 +23,7 @@
     message = ''
     try {
       await api.updateProfile({ email: email || null })
-      message = 'Email updated'
+      message = t('messages.emailUpdated', $lang)
     } catch (err) {
       error = err.message
     }
@@ -32,16 +33,16 @@
     error = ''
     message = ''
     if (!currentPassword || !newPassword) {
-      error = 'Current and new password required'
+      error = t('errors.required', $lang)
       return
     }
     if (newPassword !== confirmPassword) {
-      error = 'Passwords do not match'
+      error = t('errors.passwordsMismatch', $lang)
       return
     }
     try {
       await api.changePassword(currentPassword, newPassword)
-      message = 'Password updated'
+      message = t('messages.passwordUpdated', $lang)
       currentPassword = ''
       newPassword = ''
       confirmPassword = ''
@@ -56,36 +57,36 @@
 <section class="card">
   <div class="header">
     <div>
-      <h2>Profile</h2>
-      <p class="subtitle">Manage your account email and password.</p>
+      <h2>{t('profile.title', $lang)}</h2>
+      <p class="subtitle">{t('profile.subtitle', $lang)}</p>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">Email</div>
+    <div class="section-title">{t('profile.emailSection', $lang)}</div>
     <div class="section-body">
-      <label>Email</label>
-      <input type="email" bind:value={email} placeholder="name@example.com" />
+      <label>{t('common.email', $lang)}</label>
+      <input type="email" bind:value={email} placeholder={t('placeholders.email', $lang)} />
       <div class="section-actions">
-        <button class="ghost" on:click={saveEmail}>Update email</button>
+        <button class="ghost" on:click={saveEmail}>{t('profile.updateEmail', $lang)}</button>
       </div>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">Password</div>
+    <div class="section-title">{t('profile.passwordSection', $lang)}</div>
     <div class="section-body">
-      <label>Current password</label>
+      <label>{t('profile.currentPassword', $lang)}</label>
       <input type="password" bind:value={currentPassword} />
 
-      <label>New password</label>
+      <label>{t('profile.newPassword', $lang)}</label>
       <input type="password" bind:value={newPassword} />
 
-      <label>Confirm password</label>
+      <label>{t('profile.confirmPassword', $lang)}</label>
       <input type="password" bind:value={confirmPassword} />
 
       <div class="section-actions">
-        <button on:click={submit}>Update password</button>
+        <button on:click={submit}>{t('profile.updatePassword', $lang)}</button>
       </div>
     </div>
   </div>

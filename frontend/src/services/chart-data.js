@@ -4,7 +4,7 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow) {
   const type = item.type || 'single'
   let labels = []
   let datasets = []
-  let error = ''
+    let error = ''
 
   if (type === 'single') {
     const params = {
@@ -101,11 +101,11 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow) {
       try {
         result = evaluator(...numericValues)
       } catch (err) {
-        error = 'Formula evaluation error'
+        error = 'errors.formulaEvaluation'
         return
       }
       if (!Number.isFinite(result)) {
-        error = 'Division by zero or invalid value'
+        error = 'errors.divisionByZero'
         return
       }
       rawValues.push(result)

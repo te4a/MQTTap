@@ -1,22 +1,34 @@
-<script>
+﻿<script>
   import { createEventDispatcher } from 'svelte'
   import { clearToken } from '../lib.js'
+  import { availableLangs, lang, setLang, t } from '../i18n.js'
 
   export let user = null
+  export let title = ''
   const dispatch = createEventDispatcher()
 
   function logout() {
     clearToken()
     dispatch('authChange')
   }
+
+  function roleLabel(role) {
+    if (!role) return ''
+    return t(`role.${role}`, $lang)
+  }
 </script>
 
 <header class="topbar">
-  <div class="title">MQTT consumer</div>
+  <div class="title">{title}</div>
   <div class="spacer"></div>
+  <select class="lang" bind:value={$lang} on:change={(e) => setLang(e.target.value)}>
+    {#each availableLangs as item}
+      <option value={item.value}>{item.label}</option>
+    {/each}
+  </select>
   {#if user}
-    <div class="user">{user.username} · {user.role}</div>
-    <button on:click={logout}>Выйти</button>
+    <div class="user">{user.username} · {roleLabel(user.role)}</div>
+    <button on:click={logout}>{t('topbar.logout', $lang)}</button>
   {/if}
 </header>
 
@@ -50,5 +62,16 @@
     padding: 8px 12px;
     border-radius: 8px;
     cursor: pointer;
+  }
+
+  .lang {
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    font-size: 12px;
+    width: auto;
+    min-width: 56px;
+    display: inline-block;
   }
 </style>

@@ -1,15 +1,17 @@
 ﻿<script>
+  import { lang, t } from '../i18n.js'
+
   export let loggedIn = false
   export let isAdmin = false
   export let navigate
 
   const links = [
-    { href: '/', label: 'История' },
-    { href: '/chart', label: 'Графики' },
-    { href: '/profile', label: 'Profile' },
-    { href: '/settings', label: 'Настройки', adminOnly: true },
-    { href: '/invites', label: 'Invites', adminOnly: true },
-    { href: '/users', label: 'Пользователи', adminOnly: true }
+    { href: '/', key: 'nav.history' },
+    { href: '/chart', key: 'nav.charts' },
+    { href: '/profile', key: 'nav.profile' },
+    { href: '/invites', key: 'nav.invites', adminOnly: true },
+    { href: '/settings', key: 'nav.settings', adminOnly: true },
+    { href: '/users', key: 'nav.users', adminOnly: true }
   ]
 
   function go(path, event) {
@@ -19,19 +21,19 @@
 </script>
 
 <aside class="sidebar">
-  <div class="brand">MQTTap</div>
+  <div class="brand">{t('app.name', $lang)}</div>
   <nav>
     {#each links as link}
       {#if !link.adminOnly || isAdmin}
-        <a class:disabled={!loggedIn} href={link.href} on:click={(e) => go(link.href, e)}>{link.label}</a>
+        <a class:disabled={!loggedIn} href={link.href} on:click={(e) => go(link.href, e)}>{t(link.key, $lang)}</a>
       {/if}
     {/each}
   </nav>
   <div class="hint">
     {#if loggedIn}
-      Вы вошли в систему
+      {t('layout.loggedIn', $lang)}
     {:else}
-      Войдите для доступа
+      {t('layout.loginHint', $lang)}
     {/if}
   </div>
 </aside>

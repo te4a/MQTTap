@@ -1,5 +1,6 @@
 <script>
     import {onMount, onDestroy, tick} from 'svelte'
+    import {get} from 'svelte/store'
     import Chart from 'chart.js/auto'
     import {api} from '../lib.js'
     import ChartModal from '../components/ChartModal.svelte'
@@ -11,6 +12,7 @@
         makeLabelFormatter
     } from '../chart-utils.js'
     import {fetchChartSeries} from '../services/chart-data.js'
+    import {lang, t} from '../i18n.js'
 
     let topics = []
     let selectedTopic = ''
@@ -85,6 +87,10 @@
         return value && value !== 'off'
     }
 
+    function tr(key) {
+        return t(key, get(lang))
+    }
+
     function normalizeChannels(channels) {
         const normalized = []
         if (!Array.isArray(channels)) return normalized
@@ -144,10 +150,10 @@
                 showPoints: cfg.showPoints !== false,
                 label: cfg.label || (
                     type === 'multi'
-                        ? `${cfg.topic} (multi)`
+                        ? `${cfg.topic} (${tr('charts.multiLabel')})`
                         : type === 'formula'
-                            ? (cfg.formula || 'formula')
-                            : (isAggEnabled(normalizedAgg) ? `${cfg.field} (${normalizedAgg})` : `${cfg.field} (raw)`)
+                            ? (cfg.formula || tr('charts.formulaLabel'))
+                            : (isAggEnabled(normalizedAgg) ? `${cfg.field} (${normalizedAgg})` : `${cfg.field} (${tr('charts.raw')})`)
                 ),
                 order,
                 height: Number.isFinite(cfg.height) ? cfg.height : 240,
@@ -189,11 +195,11 @@
             const raw = JSON.parse(text)
             const config = raw?.config || raw
             if (!config || !config.topic) {
-                throw new Error('Invalid chart JSON')
+                throw new Error(tr('errors.invalidChartJson'))
             }
             const topic = getTopicByName(config.topic)
             if (!topic) {
-                throw new Error('Unknown topic')
+                throw new Error(tr('errors.unknownTopic'))
             }
             const type = config.type || 'single'
             const normalized = {
@@ -204,20 +210,20 @@
                 fromTs: config.fromTs || '',
                 toTs: config.toTs || '',
                 showPoints: config.showPoints !== false,
-                label: config.label || (type === 'single' ? `${config.field || 'field'} (${config.agg || 'avg'})` : (type === 'multi' ? `${config.topic} (multi)` : (config.formula || 'formula'))),
+                label: config.label || (type === 'single' ? `${config.field || tr('charts.field')} (${config.agg || 'avg'})` : (type === 'multi' ? `${config.topic} (${tr('charts.multiLabel')})` : (config.formula || tr('charts.formulaLabel')))),
                 order: charts.length,
                 height: Number.isFinite(config.height) ? config.height : 240
             }
             if (type === 'single') {
-                if (!config.field) throw new Error('Field required')
+                if (!config.field) throw new Error(tr('errors.fieldRequired'))
                 normalized.field = config.field
             } else if (type === 'multi') {
                 const channels = normalizeChannels(config.channels || (config.fields || []))
-                if (!channels.length) throw new Error('Channels required')
+                if (!channels.length) throw new Error(tr('errors.channelsRequired'))
                 normalized.channels = channels.slice(0, 5)
             } else if (type === 'formula') {
                 if (!config.formula || !Array.isArray(config.fields) || !config.fields.length) {
-                    throw new Error('Formula config required')
+                    throw new Error(tr('errors.formulaRequired'))
                 }
                 normalized.formula = config.formula
                 normalized.fields = config.fields
@@ -334,27 +340,27 @@
         modalFormulaError = ''
         const fieldsList = parseFieldList(modalFormulaFields)
         if (!fieldsList.length) {
-            modalFormulaError = 'Fields required'
+            modalFormulaError = tr('errors.formulaFieldsRequired')
             return
         }
         const invalidFields = fieldsList.filter(field => !modalFields.includes(field))
         if (invalidFields.length) {
-            modalFormulaError = `Unknown fields: ${invalidFields.join(', ')}`
+            modalFormulaError = `${tr('errors.unknownFields')}: ${invalidFields.join(', ')}`
             return
         }
         const formula = modalFormula.trim()
         if (!formula) {
-            modalFormulaError = 'Formula required'
+            modalFormulaError = tr('errors.formulaRequired')
             return
         }
         if (!/^[0-9A-Za-z_+\-*/().\s]+$/.test(formula)) {
-            modalFormulaError = 'Formula contains invalid characters'
+            modalFormulaError = tr('errors.invalidFormulaChars')
             return
         }
         try {
             buildFormulaEvaluator(fieldsList, formula)
         } catch (err) {
-            modalFormulaError = err.message || 'Invalid formula'
+            modalFormulaError = tr('errors.invalidFormula')
         }
     }
 
@@ -424,11 +430,11 @@
                 valueFromRow
             )
             if (seriesError) {
-                error = seriesError
+                error = seriesError.startsWith('errors.') ? tr(seriesError) : seriesError
             }
 
             if (!datasets.length) {
-                throw new Error('No data to display')
+                throw new Error(tr('errors.noData'))
             }
 
             if (!item.fromTs && labels.length) {
@@ -519,17 +525,17 @@
             if (modalFormulaError) return
         }
         if (!modalTopic) {
-            modalError = 'Topic required'
+            modalError = tr('errors.required')
             return
         }
         const topic = getTopicByName(modalTopic)
         if ((modalType === 'multi' || modalType === 'formula') && (!topic || !topic.is_json)) {
-            modalError = 'Only JSON topics supported'
+            modalError = tr('errors.onlyJsonTopics')
             return
         }
         if (modalType === 'single') {
             if (!modalField) {
-                modalError = 'Field required'
+                modalError = tr('errors.fieldRequired')
                 return
             }
             const config = {
@@ -541,7 +547,7 @@
                 fromTs: modalFromTs,
                 toTs: modalToTs,
                 showPoints: modalShowPoints,
-                label: isAggEnabled(modalAgg) ? `${modalField} (${modalAgg})` : `${modalField} (raw)`,
+                label: isAggEnabled(modalAgg) ? `${modalField} (${modalAgg})` : `${modalField} (${tr('charts.raw')})`,
                 order: charts.length,
                 height: 240
             }
@@ -552,7 +558,7 @@
             }
         } else if (modalType === 'multi') {
             if (!modalSelectedFields.length) {
-                modalError = 'Select up to 5 fields'
+                modalError = tr('errors.selectUpToFields')
                 return
             }
             const channels = modalSelectedFields.slice(0, 5).map((field, index) => ({
@@ -569,7 +575,7 @@
                 fromTs: modalFromTs,
                 toTs: modalToTs,
                 showPoints: modalShowPoints,
-                label: `${modalTopic} (multi)`,
+                label: `${modalTopic} (${tr('charts.multiLabel')})`,
                 order: charts.length,
                 height: 240
             }
@@ -581,16 +587,16 @@
         } else if (modalType === 'formula') {
             const fieldsList = parseFieldList(modalFormulaFields)
             if (!fieldsList.length) {
-                modalError = 'Fields required'
+                modalError = tr('errors.formulaFieldsRequired')
                 return
             }
             const invalidFields = fieldsList.filter(field => !modalFields.includes(field))
             if (invalidFields.length) {
-                modalError = `Unknown fields: ${invalidFields.join(', ')}`
+                modalError = `${tr('errors.unknownFields')}: ${invalidFields.join(', ')}`
                 return
             }
             if (!modalFormula.trim()) {
-                modalError = 'Formula required'
+                modalError = tr('errors.formulaRequired')
                 return
             }
             const config = {
@@ -786,21 +792,21 @@
 </script>
 
 <section class="card">
-    <h2>Графики</h2>
+    <h2>{t('charts.title', $lang)}</h2>
     <div class="filters">
         <div class="actions">
             <div class="add-menu">
-                <button on:click={toggleAddMenu}>Добавить график</button>
+                <button on:click={toggleAddMenu}>{t('charts.add', $lang)}</button>
                 {#if addMenuOpen}
                     <div class="add-menu-panel">
-                        <button class="ghost" on:click={() => openAddModal('single')}>Обычный график</button>
-                        <button class="ghost" on:click={() => openAddModal('multi')}>Многоканальный график</button>
-                        <button class="ghost" on:click={() => openAddModal('formula')}>График по формуле</button>
-                        <button class="ghost" on:click={triggerImport}>Import JSON</button>
+                        <button class="ghost" on:click={() => openAddModal('single')}>{t('charts.addSingle', $lang)}</button>
+                        <button class="ghost" on:click={() => openAddModal('multi')}>{t('charts.addMulti', $lang)}</button>
+                        <button class="ghost" on:click={() => openAddModal('formula')}>{t('charts.addFormula', $lang)}</button>
+                        <button class="ghost" on:click={triggerImport}>{t('common.importJson', $lang)}</button>
                     </div>
                 {/if}
             </div>
-            <button class="ghost" on:click={clearCharts}>Очистить</button>
+            <button class="ghost" on:click={clearCharts}>{t('common.clear', $lang)}</button>
         </div>
     </div>
 
@@ -824,8 +830,8 @@
         modalSelectedFields={modalSelectedFields}
         modalError={modalError}
         modalFormulaError={modalFormulaError}
-        title={modalEditingId ? 'Редактировать график' : 'Добавить график'}
-        submitLabel={modalEditingId ? 'Сохранить' : 'Создать'}
+        title={modalEditingId ? t('charts.modalTitleEdit', $lang) : t('charts.modalTitleAdd', $lang)}
+        submitLabel={modalEditingId ? t('charts.modalSubmitEdit', $lang) : t('charts.modalSubmitAdd', $lang)}
         bind:modalTopic
         bind:modalField
         bind:modalFormulaFields

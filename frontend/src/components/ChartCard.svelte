@@ -1,4 +1,6 @@
-<script>
+﻿<script>
+  import { lang, t } from '../i18n.js'
+
   export let item
   export let dragId = null
   export let isAggEnabled = () => false
@@ -34,45 +36,45 @@
         <button class="ghost" on:click={() => onToggleMenu(item)}>...</button>
         {#if item.menuOpen}
           <div class="menu-panel">
-            <button class="ghost" on:click={() => onEdit(item)}>Редактировать</button>
-            <button class="ghost" on:click={() => onExport(item)}>Export JSON</button>
+            <button class="ghost" on:click={() => onEdit(item)}>{t('charts.edit', $lang)}</button>
+            <button class="ghost" on:click={() => onExport(item)}>{t('charts.export', $lang)}</button>
             <label class="toggle-row toggle-row-right">
-              <span>Показывать точки</span>
+              <span>{t('common.showPoints', $lang)}</span>
               <input type="checkbox" checked={item.showPoints}
                      on:change={(e) => onTogglePoints(item, e)}/>
             </label>
             <div class="menu-section">
-              <label>Агрегация</label>
+              <label>{t('common.aggregation', $lang)}</label>
               <select bind:value={item.agg} on:change={() => onUpdateConfig(item)}>
-                <option value="off">off</option>
-                <option value="avg">avg</option>
-                <option value="min">min</option>
-                <option value="max">max</option>
+                <option value="off">{t('agg.off', $lang)}</option>
+                <option value="avg">{t('agg.avg', $lang)}</option>
+                <option value="min">{t('agg.min', $lang)}</option>
+                <option value="max">{t('agg.max', $lang)}</option>
               </select>
             </div>
             {#if isAggEnabled(item.agg)}
               <div class="menu-section">
-                <label>Интервал</label>
+                <label>{t('common.interval', $lang)}</label>
                 <select bind:value={item.interval} on:change={() => onUpdateConfig(item)}>
-                  <option value="second">second</option>
-                  <option value="minute">minute</option>
-                  <option value="hour">hour</option>
-                  <option value="day">day</option>
+                  <option value="second">{t('interval.second', $lang)}</option>
+                  <option value="minute">{t('interval.minute', $lang)}</option>
+                  <option value="hour">{t('interval.hour', $lang)}</option>
+                  <option value="day">{t('interval.day', $lang)}</option>
                 </select>
               </div>
             {/if}
             <div class="menu-section">
-              <label>С</label>
+              <label>{t('common.from', $lang)}</label>
               <input type="datetime-local" bind:value={item.fromTs} on:change={() => onUpdateConfig(item)} />
             </div>
             <div class="menu-section">
-              <label>По</label>
+              <label>{t('common.to', $lang)}</label>
               <input type="datetime-local" bind:value={item.toTs} on:change={() => onUpdateConfig(item)} />
             </div>
           </div>
         {/if}
       </div>
-      <button class="ghost" on:click={() => onRemove(item.id)}>Удалить</button>
+      <button class="ghost" on:click={() => onRemove(item.id)}>{t('charts.delete', $lang)}</button>
     </div>
   </div>
   <div class="chart-area" style={`height: ${item.height}px`}>
@@ -181,5 +183,4 @@
   .toggle-row input {
     margin: 0;
   }
-
 </style>

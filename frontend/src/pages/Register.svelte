@@ -1,6 +1,8 @@
-<script>
+﻿<script>
   import { createEventDispatcher } from 'svelte'
   import { api } from '../lib.js'
+  import { get } from 'svelte/store'
+  import { availableLangs, lang, setLang, t } from '../i18n.js'
 
   const dispatch = createEventDispatcher()
   let username = ''
@@ -11,15 +13,19 @@
   let error = ''
   let message = ''
 
+  function tr(key) {
+    return t(key, get(lang))
+  }
+
   async function submit() {
     error = ''
     message = ''
     if (!username || !password) {
-      error = 'Username and password required'
+      error = tr('errors.required')
       return
     }
     if (password !== confirmPassword) {
-      error = 'Passwords do not match'
+      error = tr('errors.passwordsMismatch')
       return
     }
     const payload = {
@@ -30,7 +36,7 @@
     if (invite.trim()) payload.invite = invite.trim()
     try {
       await api.register(payload)
-      message = 'Registration submitted'
+      message = tr('messages.registrationSubmitted')
       password = ''
       confirmPassword = ''
     } catch (err) {
@@ -45,23 +51,30 @@
 </script>
 
 <div class="card register-card">
-  <h2>Registration</h2>
-  <label>Username</label>
-  <input type="text" bind:value={username} placeholder="username" />
+  <div class="lang-row">
+    <select class="lang-select" bind:value={$lang} on:change={(e) => setLang(e.target.value)}>
+      {#each availableLangs as item}
+        <option value={item.value}>{item.label}</option>
+      {/each}
+    </select>
+  </div>
+  <h2>{t('register.title', $lang)}</h2>
+  <label>{t('common.username', $lang)}</label>
+  <input type="text" bind:value={username} placeholder={t('placeholders.username', $lang)} />
 
-  <label>Email (optional)</label>
-  <input type="email" bind:value={email} placeholder="name@example.com" />
+  <label>{t('common.email', $lang)} ({t('common.optional', $lang)})</label>
+  <input type="email" bind:value={email} placeholder={t('placeholders.email', $lang)} />
 
-  <label>Invite code (optional)</label>
+  <label>{t('register.invite', $lang)} ({t('common.optional', $lang)})</label>
   <input type="text" bind:value={invite} />
 
-  <label>Password</label>
+  <label>{t('common.password', $lang)}</label>
   <input type="password" bind:value={password} />
 
-  <label>Confirm password</label>
+  <label>{t('profile.confirmPassword', $lang)}</label>
   <input type="password" bind:value={confirmPassword} />
 
-  <button on:click={submit}>Register</button>
+  <button on:click={submit}>{t('register.submit', $lang)}</button>
 
   {#if message}
     <div class="ok">{message}</div>
@@ -71,7 +84,7 @@
   {/if}
 
   <div class="hint">
-    Already have an account? <a href="/login" on:click={goLogin}>Sign in</a>
+    {t('register.haveAccount', $lang)} <a href="/login" on:click={goLogin}>{t('login.title', $lang)}</a>
   </div>
 </div>
 
@@ -82,6 +95,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    position: relative;
   }
 
   .hint {
@@ -92,5 +106,19 @@
 
   .hint a {
     color: #111827;
+  }
+
+  .lang-row {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
+
+  .lang-select {
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    font-size: 12px;
   }
 </style>

@@ -1,5 +1,6 @@
-<script>
+﻿<script>
   import { api } from '../lib.js'
+  import { lang, t } from '../i18n.js'
 
   let invites = []
   let role = 'user'
@@ -15,7 +16,7 @@
       const me = await api.me()
       isAdmin = me.role === 'admin'
       if (!isAdmin) {
-        error = 'Admin only'
+        error = t('invites.adminOnly', $lang)
         return
       }
       invites = await api.listInvites()
@@ -33,7 +34,7 @@
       const created = await api.createInvite(payload)
       invites = [...invites, created]
       code = ''
-      message = 'Invite created'
+      message = t('messages.created', $lang)
     } catch (err) {
       error = err.message
     }
@@ -50,7 +51,7 @@
       }
       const updated = await api.updateInvite(item.id, payload)
       invites = invites.map(inv => (inv.id === updated.id ? updated : inv))
-      message = 'Invite updated'
+      message = t('messages.saved', $lang)
     } catch (err) {
       error = err.message
     }
@@ -62,7 +63,7 @@
     try {
       await api.deleteInvite(item.id)
       invites = invites.filter(inv => inv.id !== item.id)
-      message = 'Invite deleted'
+      message = t('messages.deleted', $lang)
     } catch (err) {
       error = err.message
     }
@@ -72,28 +73,28 @@
 </script>
 
 <section class="card">
-  <h2>Invites</h2>
+  <h2>{t('invites.title', $lang)}</h2>
 
   {#if !isAdmin}
-    <div class="error">{error || 'Admin only'}</div>
+    <div class="error">{error || t('invites.adminOnly', $lang)}</div>
   {:else}
     <div class="create">
-      <label>Role</label>
+      <label>{t('common.role', $lang)}</label>
       <select bind:value={role}>
-        <option value="user">user</option>
-        <option value="admin">admin</option>
+        <option value="user">{t('role.user', $lang)}</option>
+        <option value="admin">{t('role.admin', $lang)}</option>
       </select>
 
-      <label>Code (optional)</label>
-      <input bind:value={code} placeholder="auto-generated if empty" />
+      <label>{t('common.code', $lang)} ({t('common.optional', $lang)})</label>
+      <input bind:value={code} placeholder={t('placeholders.inviteAuto', $lang)} />
 
-      <label>Active</label>
+      <label>{t('common.active', $lang)}</label>
       <select bind:value={isActive}>
-        <option value={true}>true</option>
-        <option value={false}>false</option>
+        <option value={true}>{t('common.true', $lang)}</option>
+        <option value={false}>{t('common.false', $lang)}</option>
       </select>
 
-      <button on:click={createInvite}>Create invite</button>
+      <button on:click={createInvite}>{t('invites.create', $lang)}</button>
     </div>
 
     {#if message}
@@ -108,10 +109,10 @@
         <thead>
           <tr>
             <th>ID</th>
-            <th>Code</th>
-            <th>Role</th>
-            <th>Active</th>
-            <th>Actions</th>
+            <th>{t('common.code', $lang)}</th>
+            <th>{t('common.role', $lang)}</th>
+            <th>{t('common.active', $lang)}</th>
+            <th>{t('common.actions', $lang)}</th>
           </tr>
         </thead>
         <tbody>
@@ -121,19 +122,19 @@
               <td><input class="code-input" bind:value={inv.code} /></td>
               <td>
                 <select bind:value={inv.role_name}>
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
+                  <option value="user">{t('role.user', $lang)}</option>
+                  <option value="admin">{t('role.admin', $lang)}</option>
                 </select>
               </td>
               <td>
                 <select bind:value={inv.is_active}>
-                  <option value={true}>true</option>
-                  <option value={false}>false</option>
+                  <option value={true}>{t('common.true', $lang)}</option>
+                  <option value={false}>{t('common.false', $lang)}</option>
                 </select>
               </td>
               <td class="actions">
-                <button class="ghost" on:click={() => saveInvite(inv)}>Save</button>
-                <button class="ghost" on:click={() => removeInvite(inv)}>Delete</button>
+                <button class="ghost" on:click={() => saveInvite(inv)}>{t('common.save', $lang)}</button>
+                <button class="ghost" on:click={() => removeInvite(inv)}>{t('common.delete', $lang)}</button>
               </td>
             </tr>
           {/each}

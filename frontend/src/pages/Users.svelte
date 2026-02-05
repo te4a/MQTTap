@@ -1,13 +1,12 @@
-<script>
-  import { onMount } from 'svelte'
+﻿<script>
   import { api } from '../lib.js'
+  import { lang, t } from '../i18n.js'
 
   let users = []
+  let meId = null
+  let isAdmin = false
   let error = ''
   let message = ''
-  let isAdmin = false
-  let meId = null
-
   let form = {
     username: '',
     email: '',
@@ -34,7 +33,7 @@
     try {
       await api.createUser(form)
       form = { username: '', email: '', password: '', role: 'user' }
-      message = 'Пользователь создан'
+      message = t('messages.created', $lang)
       await load()
     } catch (err) {
       error = err.message
@@ -55,27 +54,25 @@
     error = ''
     try {
       await api.updateUser(user.id, { email: user.email || null })
-      message = 'Email обновлён'
+      await load()
     } catch (err) {
       error = err.message
     }
   }
 
   async function resetPassword(user) {
-    const newPass = prompt('Новый пароль')
-    if (!newPass) return
+    const pwd = prompt(t('common.password', $lang))
+    if (!pwd) return
     error = ''
     try {
-      await api.updateUser(user.id, { password: newPass })
-      message = 'Пароль обновлён'
+      await api.updateUser(user.id, { password: pwd })
+      await load()
     } catch (err) {
       error = err.message
     }
   }
 
   async function removeUser(user) {
-    if (user.id === meId) return
-    if (!confirm(`Удалить пользователя ${user.username}?`)) return
     error = ''
     try {
       await api.deleteUser(user.id)
@@ -85,34 +82,32 @@
     }
   }
 
-  onMount(load)
+  load()
 </script>
 
 <section class="card">
-  <h2>Пользователи (admin)</h2>
-
-  {#if !isAdmin}
-    <div class="error">Доступ только для администратора</div>
-  {:else}
+  <h2>{t('users.title', $lang)}</h2>
+  {#if isAdmin}
+    <h3>{t('users.create', $lang)}</h3>
     <div class="grid">
-      <label>Username</label>
+      <label>{t('common.username', $lang)}</label>
       <input bind:value={form.username} />
 
-      <label>Email (optional)</label>
+      <label>{t('common.email', $lang)}</label>
       <input bind:value={form.email} />
 
-      <label>Пароль</label>
+      <label>{t('common.password', $lang)}</label>
       <input type="password" bind:value={form.password} />
 
-      <label>Роль</label>
+      <label>{t('common.role', $lang)}</label>
       <select bind:value={form.role}>
-        <option value="user">user</option>
-        <option value="admin">admin</option>
-        <option value="pending">pending</option>
+        <option value="user">{t('role.user', $lang)}</option>
+        <option value="admin">{t('role.admin', $lang)}</option>
+        <option value="pending">{t('role.pending', $lang)}</option>
       </select>
     </div>
 
-    <button on:click={createUser}>Создать</button>
+    <button on:click={createUser}>{t('common.create', $lang)}</button>
 
     {#if message}
       <div class="ok">{message}</div>
@@ -125,16 +120,16 @@
 
 {#if isAdmin}
   <section class="card">
-    <h3>Список пользователей</h3>
+    <h3>{t('users.list', $lang)}</h3>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>ID</th>
-            <th>Username</th>
-            <th>Email</th>
-            <th>Роль</th>
-            <th>Действия</th>
+            <th>{t('common.username', $lang)}</th>
+            <th>{t('common.email', $lang)}</th>
+            <th>{t('common.role', $lang)}</th>
+            <th>{t('common.actions', $lang)}</th>
           </tr>
         </thead>
         <tbody>
@@ -143,19 +138,19 @@
               <td>{u.id}</td>
               <td>{u.username}</td>
               <td class="email-cell">
-                <input class="email-input" bind:value={u.email} placeholder="-" />
-                <button class="ghost" on:click={() => saveEmail(u)}>Сохранить</button>
+                <input class="email-input" bind:value={u.email} placeholder={t('users.emailPlaceholder', $lang)} />
+                <button class="ghost" on:click={() => saveEmail(u)}>{t('common.save', $lang)}</button>
               </td>
               <td>
                 <select value={u.role} on:change={(e) => updateRole(u, e.target.value)}>
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                  <option value="pending">pending</option>
+                  <option value="user">{t('role.user', $lang)}</option>
+                  <option value="admin">{t('role.admin', $lang)}</option>
+                  <option value="pending">{t('role.pending', $lang)}</option>
                 </select>
               </td>
               <td class="actions">
-                <button class="ghost" on:click={() => resetPassword(u)}>Сменить пароль</button>
-                <button class="ghost" disabled={u.id === meId} on:click={() => removeUser(u)}>Удалить</button>
+                <button class="ghost" on:click={() => resetPassword(u)}>{t('users.resetPassword', $lang)}</button>
+                <button class="ghost" disabled={u.id === meId} on:click={() => removeUser(u)}>{t('common.delete', $lang)}</button>
               </td>
             </tr>
           {/each}
@@ -178,9 +173,6 @@
   }
 
   .ghost {
-    background: transparent;
-    color: #111827;
-    border: 1px solid #e5e7eb;
     padding: 6px 10px;
   }
 
@@ -199,16 +191,9 @@
     min-width: 180px;
   }
 
-  .ok {
-    margin-top: 10px;
-  }
-
+  .ok,
   .error {
     margin-top: 10px;
-  }
-
-  tbody tr:last-child td {
-    border-bottom: none;
   }
 
   @media (max-width: 700px) {

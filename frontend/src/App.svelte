@@ -10,6 +10,7 @@
   import Users from './pages/Users.svelte'
   import Profile from './pages/Profile.svelte'
   import Invites from './pages/Invites.svelte'
+  import { lang, t } from './i18n.js'
   import { api, getToken, clearToken } from './lib.js'
 
   const routes = {
@@ -35,6 +36,21 @@
 
   function resolveRoute(path) {
     return routes[path] || History
+  }
+
+  function resolveTitle(path) {
+    const map = {
+      '/': 'nav.history',
+      '/chart': 'nav.charts',
+      '/profile': 'nav.profile',
+      '/settings': 'nav.settings',
+      '/users': 'nav.users',
+      '/invites': 'nav.invites',
+      '/login': 'nav.login',
+      '/register': 'nav.register'
+    }
+    const key = map[path] || 'nav.history'
+    return t(key, $lang)
   }
 
   async function refreshAuth() {
@@ -80,7 +96,7 @@
   <div class="app">
     <Sidebar {loggedIn} isAdmin={user?.role === 'admin'} {navigate} />
     <div class="main">
-      <Topbar {user} on:authChange={refreshAuth} />
+      <Topbar {user} title={resolveTitle(currentPath)} on:authChange={refreshAuth} />
       <div class="content">
         <svelte:component this={resolveRoute(currentPath)} />
       </div>
