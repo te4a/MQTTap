@@ -33,7 +33,6 @@
     let modalFields = []
     let modalSelectedFields = []
     let modalFormula = ''
-    let modalFormulaFields = ''
     let modalAgg = 'avg'
     let modalInterval = 'minute'
     let modalFromTs = ''
@@ -132,7 +131,9 @@
             const type = cfg.type || 'single'
             const channels = normalizeChannels(cfg.channels || [])
             const formula = cfg.formula || ''
-            const formulaFields = Array.isArray(cfg.fields) ? cfg.fields : []
+            const formulaFields = Array.isArray(cfg.fields) && cfg.fields.length
+                ? cfg.fields
+                : extractFormulaFields(cfg.formula || '')
             const order = Number.isFinite(cfg.order) ? cfg.order : index
             const chart = {
                 id: item.id,
@@ -222,11 +223,18 @@
                 if (!channels.length) throw new Error(tr('errors.channelsRequired'))
                 normalized.channels = channels.slice(0, 5)
             } else if (type === 'formula') {
-                if (!config.formula || !Array.isArray(config.fields) || !config.fields.length) {
+                if (!config.formula) {
                     throw new Error(tr('errors.formulaRequired'))
                 }
                 normalized.formula = config.formula
-                normalized.fields = config.fields
+                normalized.fields = extractFormulaFields(config.formula)
+                if (!normalized.fields.length) {
+                    throw new Error(tr('errors.formulaFieldsRequired'))
+                }
+                const invalidFields = normalized.fields.filter(field => !topic.fields.includes(field))
+                if (invalidFields.length) {
+                    throw new Error(`${tr('errors.unknownFields')}: ${invalidFields.join(', ')}`)
+                }
             }
             await createChartItem(normalized, topic)
         } catch (err) {
@@ -247,7 +255,6 @@
         modalFields = getFieldsForTopic(modalTopic)
         modalField = modalFields[0] || ''
         modalSelectedFields = modalFields.slice(0, 2)
-        modalFormulaFields = modalSelectedFields.join(',')
         modalFormula = ''
         modalAgg = agg
         modalInterval = interval
@@ -292,7 +299,6 @@
         modalFields = getFieldsForTopic(modalTopic)
         modalField = item.field || modalFields[0] || ''
         modalSelectedFields = (item.channels || []).map(channel => channel.field)
-        modalFormulaFields = (item.fields || []).join(',')
         modalFormula = item.formula || ''
         modalAgg = item.agg
         modalInterval = item.interval
@@ -313,9 +319,6 @@
         if (!modalSelectedFields.length && modalFields.length) {
             modalSelectedFields = modalFields.slice(0, 2)
         }
-        if (modalType === 'formula' && !modalFormulaFields.trim()) {
-            modalFormulaFields = modalSelectedFields.join(',')
-        }
         if (modalType === 'formula') {
             validateFormulaInput()
         }
@@ -329,16 +332,19 @@
         }
     }
 
-    function parseFieldList(text) {
-        return text
-            .split(',')
-            .map(item => item.trim())
-            .filter(Boolean)
+    function extractFormulaFields(formula) {
+        const matches = formula.match(/[A-Za-z_][A-Za-z0-9_]*/g) || []
+        return Array.from(new Set(matches))
     }
 
     function validateFormulaInput() {
         modalFormulaError = ''
-        const fieldsList = parseFieldList(modalFormulaFields)
+        const formula = modalFormula.trim()
+        if (!formula) {
+            modalFormulaError = tr('errors.formulaRequired')
+            return
+        }
+        const fieldsList = extractFormulaFields(formula)
         if (!fieldsList.length) {
             modalFormulaError = tr('errors.formulaFieldsRequired')
             return
@@ -346,11 +352,6 @@
         const invalidFields = fieldsList.filter(field => !modalFields.includes(field))
         if (invalidFields.length) {
             modalFormulaError = `${tr('errors.unknownFields')}: ${invalidFields.join(', ')}`
-            return
-        }
-        const formula = modalFormula.trim()
-        if (!formula) {
-            modalFormulaError = tr('errors.formulaRequired')
             return
         }
         if (!/^[0-9A-Za-z_+\-*/().\s]+$/.test(formula)) {
@@ -585,7 +586,7 @@
                 await createChartItem(config, topic)
             }
         } else if (modalType === 'formula') {
-            const fieldsList = parseFieldList(modalFormulaFields)
+            const fieldsList = extractFormulaFields(modalFormula)
             if (!fieldsList.length) {
                 modalError = tr('errors.formulaFieldsRequired')
                 return
@@ -834,7 +835,6 @@
         submitLabel={modalEditingId ? t('charts.modalSubmitEdit', $lang) : t('charts.modalSubmitAdd', $lang)}
         bind:modalTopic
         bind:modalField
-        bind:modalFormulaFields
         bind:modalFormula
         bind:modalAgg
         bind:modalInterval

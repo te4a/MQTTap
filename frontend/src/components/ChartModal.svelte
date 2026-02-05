@@ -8,7 +8,6 @@
   export let modalFields = []
   export let modalField = ''
   export let modalSelectedFields = []
-  export let modalFormulaFields = ''
   export let modalFormula = ''
   export let modalAgg = 'avg'
   export let modalInterval = 'minute'
@@ -83,15 +82,6 @@
           </div>
         {/if}
         {#if modalType === 'formula'}
-          <div class="modal-span">
-            <label>{t('charts.fields', $lang)}</label>
-            <input
-              type="text"
-              bind:value={modalFormulaFields}
-              class:input-error={!!modalFormulaError}
-              on:input={onValidateFormula}
-            />
-          </div>
           <div class="modal-span">
             <label>{t('charts.formula', $lang)}</label>
             <input
