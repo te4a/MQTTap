@@ -1,6 +1,5 @@
 {
   "lang.label": "RU",
-  "app.name": "MQTT consumer",
   "nav.history": "История",
   "nav.charts": "Графики",
   "nav.profile": "Профиль",
@@ -33,6 +32,7 @@
   "common.role": "Роль",
   "common.save": "Сохранить",
   "common.showPoints": "Показывать точки",
+  "common.alignTime": "Выравнивать по времени",
   "common.to": "До",
   "common.true": "Да",
   "common.type": "Тип",
@@ -58,6 +58,7 @@
   "charts.multiLabel": "Мульти",
   "charts.formulaLabel": "Формула",
   "charts.raw": "без агр.",
+  "charts.limitNotice": "Ограничено до 5000 точек",
   "history.title": "История",
   "history.load": "Загрузить",
   "history.noData": "Нет данных",

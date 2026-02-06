@@ -21,7 +21,10 @@
 </script>
 
 <aside class="sidebar">
-  <div class="brand">{t('app.name', $lang)}</div>
+  <div class="brand">
+    <img class="brand-icon" src="/app-icon.png" alt="MQTTap" />
+    MQTTap
+  </div>
   <nav>
     {#each links as link}
       {#if !link.adminOnly || isAdmin}
@@ -50,6 +53,15 @@
     font-size: 20px;
     margin-bottom: 32px;
     letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-icon {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
   }
 
   nav {

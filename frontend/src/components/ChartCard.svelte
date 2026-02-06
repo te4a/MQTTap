@@ -10,6 +10,7 @@
   export let onDragEnd = () => {}
   export let onToggleMenu = () => {}
   export let onTogglePoints = () => {}
+  export let onToggleAlign = () => {}
   export let onEdit = () => {}
   export let onExport = () => {}
   export let onRemove = () => {}
@@ -42,6 +43,11 @@
               <span>{t('common.showPoints', $lang)}</span>
               <input type="checkbox" checked={item.showPoints}
                      on:change={(e) => onTogglePoints(item, e)}/>
+            </label>
+            <label class="toggle-row toggle-row-right">
+              <span>{t('common.alignTime', $lang)}</span>
+              <input type="checkbox" checked={item.alignTime}
+                     on:change={(e) => onToggleAlign(item, e)}/>
             </label>
             <div class="menu-section">
               <label>{t('common.aggregation', $lang)}</label>
@@ -78,6 +84,9 @@
     </div>
   </div>
   <div class="chart-area" style={`height: ${item.height}px`}>
+    {#if item.limitNotice}
+      <div class="limit-badge">{t('charts.limitNotice', $lang)}</div>
+    {/if}
     <canvas bind:this={item.canvas}></canvas>
   </div>
   <div class="resize-grip" on:mousedown={(e) => onResizeStart(item, e)}></div>
@@ -126,12 +135,26 @@
     min-height: 200px;
     width: 100%;
     min-width: 0;
+    position: relative;
   }
 
   .chart-area canvas {
     width: 100% !important;
     height: 100% !important;
     display: block;
+  }
+
+  .limit-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(17, 24, 39, 0.85);
+    color: #f9fafb;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    z-index: 2;
   }
 
   .resize-grip {

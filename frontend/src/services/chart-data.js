@@ -1,10 +1,10 @@
-import {aggregateSeries, buildFormulaEvaluator, palette} from '../chart-utils.js'
+import {aggregateSeries, alignTimeSeries, buildFormulaEvaluator, palette} from '../chart-utils.js'
 
 export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow) {
   const type = item.type || 'single'
   let labels = []
   let datasets = []
-    let error = ''
+  let error = ''
 
   if (type === 'single') {
     const params = {
@@ -145,5 +145,7 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow) {
     }
   }
 
-  return {labels, datasets, error}
+  const alignInterval = isAggEnabled(item.agg) ? item.interval : null
+  const aligned = alignTimeSeries(labels, datasets, alignInterval, item.alignTime)
+  return {labels: aligned.labels, datasets: aligned.datasets, error, truncated: aligned.truncated}
 }

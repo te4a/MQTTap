@@ -1,6 +1,5 @@
 {
   "lang.label": "EN",
-  "app.name": "MQTT consumer",
   "nav.history": "History",
   "nav.charts": "Charts",
   "nav.profile": "Profile",
@@ -33,6 +32,7 @@
   "common.role": "Role",
   "common.save": "Save",
   "common.showPoints": "Show points",
+  "common.alignTime": "Align time",
   "common.to": "To",
   "common.true": "Yes",
   "common.type": "Type",
@@ -58,6 +58,7 @@
   "charts.multiLabel": "Multi",
   "charts.formulaLabel": "Formula",
   "charts.raw": "raw",
+  "charts.limitNotice": "Limited to 5000 points",
   "history.title": "History",
   "history.load": "Load",
   "history.noData": "No data",

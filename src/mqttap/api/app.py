@@ -716,6 +716,13 @@ if _dist_path.exists() and _index_path.exists():
     async def frontend_fallback(path: str) -> FileResponse:
         if path.startswith("api/"):
             raise HTTPException(status_code=404, detail="Not found")
+        requested_path = (_dist_path / path).resolve()
+        try:
+            requested_path.relative_to(_dist_path)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Not found")
+        if requested_path.is_file():
+            return FileResponse(requested_path)
         return FileResponse(_index_path)
 else:
     @app.get("/")

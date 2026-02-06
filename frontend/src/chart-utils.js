@@ -139,3 +139,61 @@ export function buildFormulaEvaluator(fields, formula) {
   }
   return new Function(...fields, `return ${formula}`)
 }
+
+const INTERVAL_MS = {
+  second: 1000,
+  minute: 60000,
+  hour: 3600000,
+  day: 86400000
+}
+
+function median(values) {
+  if (!values.length) return null
+  const sorted = values.slice().sort((a, b) => a - b)
+  return sorted[Math.floor(sorted.length / 2)]
+}
+
+export function alignTimeSeries(labels, datasets, interval, enabled) {
+  if (!enabled || labels.length < 2) return {labels, datasets, truncated: false}
+  const times = labels.map((value) => {
+    const d = new Date(value)
+    return Number.isNaN(d.getTime()) ? null : d.getTime()
+  })
+  if (times.some(value => value === null)) return {labels, datasets, truncated: false}
+  const stepFromInterval = interval ? INTERVAL_MS[interval] : null
+  let stepMs = stepFromInterval
+  if (!stepMs) {
+    const deltas = []
+    for (let i = 1; i < times.length; i += 1) {
+      const delta = times[i] - times[i - 1]
+      if (delta > 0) deltas.push(delta)
+    }
+    stepMs = median(deltas)
+  }
+  if (!stepMs || stepMs <= 0) return {labels, datasets, truncated: false}
+  const start = times[0]
+  const end = times[times.length - 1]
+  let total = Math.floor((end - start) / stepMs) + 1
+  const truncated = total > 5000
+  if (truncated) total = 5000
+  const indexByTime = new Map()
+  times.forEach((value, index) => indexByTime.set(value, index))
+  const fullLabels = []
+  const newDatasets = datasets.map((dataset) => ({
+    ...dataset,
+    data: []
+  }))
+  for (let i = 0; i < total; i += 1) {
+    const current = start + (i * stepMs)
+    fullLabels.push(new Date(current).toISOString())
+    const sourceIndex = indexByTime.get(current)
+    newDatasets.forEach((dataset, datasetIndex) => {
+      if (sourceIndex === undefined) {
+        dataset.data.push(null)
+      } else {
+        dataset.data.push(datasets[datasetIndex].data[sourceIndex])
+      }
+    })
+  }
+  return {labels: fullLabels, datasets: newDatasets, truncated}
+}

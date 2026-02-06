@@ -14,6 +14,7 @@
   export let modalFromTs = ''
   export let modalToTs = ''
   export let modalShowPoints = true
+  export let modalAlignTime = false
   export let modalError = ''
   export let modalFormulaError = ''
   export let isAggEnabled = () => false
@@ -130,6 +131,12 @@
           <label class="checkbox checkbox-right">
             <span>{t('common.showPoints', $lang)}</span>
             <input type="checkbox" bind:checked={modalShowPoints} />
+          </label>
+        </div>
+        <div class="modal-span modal-checkbox">
+          <label class="checkbox checkbox-right">
+            <span>{t('common.alignTime', $lang)}</span>
+            <input type="checkbox" bind:checked={modalAlignTime} />
           </label>
         </div>
       </div>

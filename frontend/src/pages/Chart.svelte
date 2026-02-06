@@ -23,6 +23,7 @@
     let fromTs = ''
     let toTs = ''
     let showPoints = true
+    let alignTime = false
     let floatPrecision = 5
     let error = ''
     let addMenuOpen = false
@@ -38,6 +39,7 @@
     let modalFromTs = ''
     let modalToTs = ''
     let modalShowPoints = true
+    let modalAlignTime = false
     let modalError = ''
     let modalFormulaError = ''
     let modalEditingId = null
@@ -149,6 +151,7 @@
                 fromTs: cfg.fromTs || '',
                 toTs: cfg.toTs || '',
                 showPoints: cfg.showPoints !== false,
+                alignTime: cfg.alignTime === true,
                 label: cfg.label || (
                     type === 'multi'
                         ? `${cfg.topic} (${tr('charts.multiLabel')})`
@@ -162,7 +165,8 @@
                 chart: null,
                 menuOpen: false,
                 updating: false,
-                fromInitialized: !!cfg.fromTs
+                fromInitialized: !!cfg.fromTs,
+                limitNotice: false
             }
             loaded.push(chart)
             index += 1
@@ -261,6 +265,7 @@
         modalFromTs = fromTs
         modalToTs = toTs
         modalShowPoints = showPoints
+        modalAlignTime = alignTime
         if (modalType === 'formula') {
             validateFormulaInput()
         }
@@ -305,6 +310,7 @@
         modalFromTs = item.fromTs || ''
         modalToTs = item.toTs || ''
         modalShowPoints = item.showPoints !== false
+        modalAlignTime = item.alignTime === true
         if (modalType === 'formula') {
             validateFormulaInput()
         }
@@ -394,6 +400,7 @@
             fromTs: item.fromTs,
             toTs: item.toTs,
             showPoints: item.showPoints,
+            alignTime: item.alignTime,
             label: item.label,
             order: item.order,
             height: item.height
@@ -424,7 +431,7 @@
         item.updating = true
         error = ''
         try {
-            const {labels, datasets, error: seriesError} = await fetchChartSeries(
+            const {labels, datasets, error: seriesError, truncated} = await fetchChartSeries(
                 api,
                 item,
                 isAggEnabled,
@@ -433,6 +440,7 @@
             if (seriesError) {
                 error = seriesError.startsWith('errors.') ? tr(seriesError) : seriesError
             }
+            item.limitNotice = !!truncated
 
             if (!datasets.length) {
                 throw new Error(tr('errors.noData'))
@@ -548,6 +556,7 @@
                 fromTs: modalFromTs,
                 toTs: modalToTs,
                 showPoints: modalShowPoints,
+                alignTime: modalAlignTime,
                 label: isAggEnabled(modalAgg) ? `${modalField} (${modalAgg})` : `${modalField} (${tr('charts.raw')})`,
                 order: charts.length,
                 height: 240
@@ -576,6 +585,7 @@
                 fromTs: modalFromTs,
                 toTs: modalToTs,
                 showPoints: modalShowPoints,
+                alignTime: modalAlignTime,
                 label: `${modalTopic} (${tr('charts.multiLabel')})`,
                 order: charts.length,
                 height: 240
@@ -610,6 +620,7 @@
                 fromTs: modalFromTs,
                 toTs: modalToTs,
                 showPoints: modalShowPoints,
+                alignTime: modalAlignTime,
                 label: modalFormula.trim(),
                 order: charts.length,
                 height: 240
@@ -637,6 +648,7 @@
         item.fromTs = config.fromTs
         item.toTs = config.toTs
         item.showPoints = config.showPoints
+        item.alignTime = config.alignTime
         item.label = config.label
         if (item.chart) {
             item.chart.destroy()
@@ -648,8 +660,8 @@
 
     async function createChartItem(config, topic) {
         const saved = await api.createChart({name: config.label, config})
-        const item = {
-            id: saved.id,
+            const item = {
+                id: saved.id,
             type: config.type || 'single',
             topic: config.topic,
             field: config.field,
@@ -662,15 +674,17 @@
             fromTs: config.fromTs,
             toTs: config.toTs,
             showPoints: config.showPoints,
+            alignTime: config.alignTime,
             label: config.label,
             order: config.order,
             height: config.height,
             canvas: null,
-            chart: null,
-            menuOpen: false,
-            updating: false,
-            fromInitialized: !!config.fromTs
-        }
+                chart: null,
+                menuOpen: false,
+                updating: false,
+                fromInitialized: !!config.fromTs,
+                limitNotice: false
+            }
         charts = [...charts, item]
         await tick()
         await buildChart(item)
@@ -694,6 +708,17 @@
 
     async function togglePoints(item, event) {
         item.showPoints = event.target.checked
+        item.menuOpen = false
+        charts = [...charts]
+        if (item.chart) {
+            item.chart.destroy()
+            item.chart = null
+        }
+        await updateChartConfig(item)
+    }
+
+    async function toggleAlign(item, event) {
+        item.alignTime = event.target.checked
         item.menuOpen = false
         charts = [...charts]
         if (item.chart) {
@@ -841,6 +866,7 @@
         bind:modalFromTs
         bind:modalToTs
         bind:modalShowPoints
+        bind:modalAlignTime
         {isAggEnabled}
         onClose={closeModal}
         onSubmit={addChartFromModal}
@@ -862,6 +888,7 @@
             onDragEnd={onDragEnd}
             onToggleMenu={toggleMenu}
             onTogglePoints={togglePoints}
+            onToggleAlign={toggleAlign}
             onEdit={openEditModal}
             onExport={exportChart}
             onRemove={removeChart}
