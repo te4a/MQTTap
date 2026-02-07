@@ -77,7 +77,7 @@ async def login(payload: LoginRequest) -> TokenResponse:
 async def me(user=Depends(require_user)) -> UserInfo:
     sql = text(
         """
-        SELECT users.id, users.username, users.email, roles.name AS role
+        SELECT users.id, users.username, users.email, users.max_points, roles.name AS role
         FROM users
         JOIN roles ON roles.id = users.role_id
         WHERE users.id = :id
@@ -92,6 +92,7 @@ async def me(user=Depends(require_user)) -> UserInfo:
         username=row["username"],
         email=row["email"],
         role=row["role"],
+        max_points=row["max_points"],
     )
 
 
@@ -144,9 +145,10 @@ async def register(payload: RegisterRequest) -> dict[str, str]:
                 await conn.execute(
                     text(
                         """
-                        SELECT code, role_name, is_active
+                        SELECT code, role_name, is_active, is_single_use
                         FROM invites
                         WHERE code = :code
+                        FOR UPDATE
                         """
                     ),
                     {"code": invite_code},
@@ -172,6 +174,11 @@ async def register(payload: RegisterRequest) -> dict[str, str]:
                 "role": role_name,
             },
         )
+        if invite_code and invite and invite["is_single_use"]:
+            await conn.execute(
+                text("UPDATE invites SET is_active = false WHERE code = :code"),
+                {"code": invite_code},
+            )
 
     return {"status": "ok"}
 
@@ -179,10 +186,24 @@ async def register(payload: RegisterRequest) -> dict[str, str]:
 @api_router.put("/auth/profile")
 async def update_profile(payload: UpdateProfileRequest, user=Depends(require_user)) -> dict[str, str]:
     email = payload.email
+    max_points = payload.max_points
+    fields_set = getattr(payload, "model_fields_set", getattr(payload, "__fields_set__", set()))
+    updates = []
+    params: dict[str, Any] = {"id": user["id"]}
+    if "email" in fields_set:
+        updates.append("email = :email")
+        params["email"] = email
+    if "max_points" in fields_set:
+        if max_points is None or not 1 <= max_points <= 5000:
+            raise HTTPException(status_code=400, detail="max_points must be between 1 and 5000")
+        updates.append("max_points = :max_points")
+        params["max_points"] = max_points
+    if not updates:
+        return {"status": "ok"}
     async with engine.begin() as conn:
         await conn.execute(
-            text("UPDATE users SET email = :email WHERE id = :id"),
-            {"id": user["id"], "email": email},
+            text(f"UPDATE users SET {', '.join(updates)} WHERE id = :id"),
+            params,
         )
     return {"status": "ok"}
 
@@ -197,7 +218,17 @@ async def get_settings(user=Depends(require_admin)) -> dict[str, Any]:
 @api_router.get("/settings/public")
 async def get_public_settings(user=Depends(require_user)) -> dict[str, Any]:
     data = await load_settings(engine)
-    return {"float_precision": data.get("float_precision")}
+    async with engine.begin() as conn:
+        row = (
+            await conn.execute(
+                text("SELECT max_points FROM users WHERE id = :id"),
+                {"id": user["id"]},
+            )
+        ).mappings().first()
+    return {
+        "float_precision": data.get("float_precision"),
+        "max_points": row["max_points"] if row else 5000,
+    }
 
 
 @api_router.put("/settings")
@@ -317,7 +348,7 @@ async def delete_user(user_id: int, user=Depends(require_admin)) -> dict[str, st
 async def list_invites(user=Depends(require_admin)) -> list[dict[str, Any]]:
     sql = text(
         """
-        SELECT id, code, role_name, is_active, created_by, created_at, updated_at
+        SELECT id, code, role_name, is_active, is_single_use, created_by, created_at, updated_at
         FROM invites
         ORDER BY id
         """
@@ -342,15 +373,16 @@ async def create_invite(payload: InviteCreateRequest, user=Depends(require_admin
             await conn.execute(
                 text(
                     """
-                    INSERT INTO invites (code, role_name, is_active, created_by)
-                    VALUES (:code, :role_name, :is_active, :created_by)
-                    RETURNING id, code, role_name, is_active, created_by, created_at, updated_at
+                    INSERT INTO invites (code, role_name, is_active, is_single_use, created_by)
+                    VALUES (:code, :role_name, :is_active, :is_single_use, :created_by)
+                    RETURNING id, code, role_name, is_active, is_single_use, created_by, created_at, updated_at
                     """
                 ),
                 {
                     "code": code,
                     "role_name": payload.role_name,
                     "is_active": payload.is_active,
+                    "is_single_use": payload.is_single_use,
                     "created_by": user["id"],
                 },
             )
@@ -377,6 +409,9 @@ async def update_invite(
     if payload.is_active is not None:
         updates.append("is_active = :is_active")
         params["is_active"] = payload.is_active
+    if payload.is_single_use is not None:
+        updates.append("is_single_use = :is_single_use")
+        params["is_single_use"] = payload.is_single_use
     if not updates:
         raise HTTPException(status_code=400, detail="no fields to update")
 
@@ -385,7 +420,7 @@ async def update_invite(
         UPDATE invites
         SET {', '.join(updates)}
         WHERE id = :invite_id
-        RETURNING id, code, role_name, is_active, created_by, created_at, updated_at
+        RETURNING id, code, role_name, is_active, is_single_use, created_by, created_at, updated_at
         """
     )
     async with engine.begin() as conn:
@@ -518,6 +553,27 @@ def _parse_fields(value: str | None) -> list[str] | None:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
+def _parse_interval(value: str | None) -> tuple[int, str] | None:
+    if not value:
+        return None
+    parts = value.strip().split()
+    if len(parts) == 1:
+        count = 1
+        unit = parts[0].lower()
+    elif len(parts) == 2 and parts[0].isdigit():
+        count = int(parts[0])
+        unit = parts[1].lower()
+    else:
+        return None
+    if count < 1:
+        return None
+    if unit.endswith("s"):
+        unit = unit[:-1]
+    if unit not in ("second", "minute", "hour", "day"):
+        return None
+    return count, unit
+
+
 @api_router.get("/topics")
 async def list_topics(user=Depends(require_user)) -> list[dict[str, Any]]:
     sql = text("SELECT topic, table_name, is_json FROM topic_registry ORDER BY topic")
@@ -571,8 +627,10 @@ async def history(
     dt_to = _parse_dt(to_ts)
 
     if agg:
-        if interval not in ("second", "minute", "hour", "day"):
+        parsed = _parse_interval(interval)
+        if not parsed:
             raise HTTPException(status_code=400, detail="Invalid interval")
+        interval_count, interval_unit = parsed
         return await _history_aggregate(
             table_name,
             is_json,
@@ -580,7 +638,8 @@ async def history(
             dt_from,
             dt_to,
             agg,
-            interval,
+            interval_count,
+            interval_unit,
         )
     if not dt_from and not dt_to:
         order = "desc"
@@ -641,14 +700,15 @@ async def _history_aggregate(
     dt_from: datetime | None,
     dt_to: datetime | None,
     agg: str,
-    interval: str,
+    interval_count: int,
+    interval_unit: str,
 ) -> dict[str, Any]:
     agg = agg.lower()
     if agg not in ("min", "max", "avg"):
         raise HTTPException(status_code=400, detail="Invalid aggregation")
 
     where = []
-    params: dict[str, Any] = {"bucket": interval}
+    params: dict[str, Any] = {"count": interval_count}
     if dt_from:
         where.append("ts >= :from_ts")
         params["from_ts"] = dt_from
@@ -657,6 +717,8 @@ async def _history_aggregate(
         params["to_ts"] = dt_to
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
 
+    interval_arg = {"second": "secs", "minute": "mins", "hour": "hours", "day": "days"}[interval_unit]
+    bucket_expr = f"date_bin(make_interval({interval_arg} => :count), ts, '1970-01-01')"
     if is_json:
         columns = await get_table_columns(engine, table_name)
         for field in fields:
@@ -669,7 +731,7 @@ async def _history_aggregate(
         )
         sql = text(
             f"""
-            SELECT date_trunc(:bucket, ts) AS bucket, {agg_cols}
+            SELECT {bucket_expr} AS bucket, {agg_cols}
             FROM {quote_ident(table_name)}
             {where_sql}
             GROUP BY bucket
@@ -680,7 +742,7 @@ async def _history_aggregate(
         expr = "CASE WHEN value_type = 'float' THEN value_float WHEN value_type = 'int' THEN value_int END"
         sql = text(
             f"""
-            SELECT date_trunc(:bucket, ts) AS bucket, {agg}({expr}) AS value
+            SELECT {bucket_expr} AS bucket, {agg}({expr}) AS value
             FROM {quote_ident(table_name)}
             {where_sql}
             GROUP BY bucket

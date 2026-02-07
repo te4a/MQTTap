@@ -6,6 +6,7 @@
   let currentPassword = ''
   let newPassword = ''
   let confirmPassword = ''
+  let maxPoints = 5000
   let message = ''
   let error = ''
 
@@ -13,6 +14,7 @@
     try {
       const me = await api.me()
       email = me.email || ''
+      maxPoints = Number(me.max_points ?? 5000)
     } catch (err) {
       error = err.message
     }
@@ -46,6 +48,22 @@
       currentPassword = ''
       newPassword = ''
       confirmPassword = ''
+    } catch (err) {
+      error = err.message
+    }
+  }
+
+  async function saveMaxPoints() {
+    error = ''
+    message = ''
+    const value = Number(maxPoints)
+    if (!Number.isFinite(value) || value < 1 || value > 5000) {
+      error = t('errors.invalidMaxPoints', $lang)
+      return
+    }
+    try {
+      await api.updateProfile({ max_points: value })
+      message = t('messages.saved', $lang)
     } catch (err) {
       error = err.message
     }
@@ -87,6 +105,17 @@
 
       <div class="section-actions">
         <button on:click={submit}>{t('profile.updatePassword', $lang)}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">{t('profile.chartsSection', $lang)}</div>
+    <div class="section-body">
+      <label>{t('profile.maxPoints', $lang)}</label>
+      <input type="number" min="1" max="5000" step="1" bind:value={maxPoints} />
+      <div class="section-actions">
+        <button class="ghost" on:click={saveMaxPoints}>{t('profile.updateMaxPoints', $lang)}</button>
       </div>
     </div>
   </div>

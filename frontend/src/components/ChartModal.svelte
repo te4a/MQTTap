@@ -11,6 +11,7 @@
   export let modalFormula = ''
   export let modalAgg = 'avg'
   export let modalInterval = 'minute'
+  export let modalIntervalCount = 1
   export let modalFromTs = ''
   export let modalToTs = ''
   export let modalShowPoints = true
@@ -25,6 +26,17 @@
   export let onValidateFormula = () => {}
   export let title = ''
   export let submitLabel = ''
+
+  function shortInterval(value, langCode) {
+    const map = {
+      second: { en: 's', ru: 'с' },
+      minute: { en: 'm', ru: 'м' },
+      hour: { en: 'h', ru: 'ч' },
+      day: { en: 'd', ru: 'д' }
+    }
+    const entry = map[value] || { en: value?.[0] || '', ru: value?.[0] || '' }
+    return (langCode || 'en') === 'ru' ? entry.ru : entry.en
+  }
 </script>
 
 {#if open}
@@ -111,12 +123,19 @@
         {#if isAggEnabled(modalAgg)}
           <div>
             <label>{t('common.interval', $lang)}</label>
-            <select bind:value={modalInterval}>
-              <option value="second">{t('interval.second', $lang)}</option>
-              <option value="minute">{t('interval.minute', $lang)}</option>
-              <option value="hour">{t('interval.hour', $lang)}</option>
-              <option value="day">{t('interval.day', $lang)}</option>
-            </select>
+            <div class="interval-row">
+              <span class="interval-label">{t('common.intervalEvery', $lang)}</span>
+              <input type="number" min="1" step="1" bind:value={modalIntervalCount} />
+              <div class="select-short">
+                <span class="select-short-label">{shortInterval(modalInterval, $lang)}</span>
+                <select bind:value={modalInterval}>
+                  <option value="second">{t('interval.second', $lang)}</option>
+                  <option value="minute">{t('interval.minute', $lang)}</option>
+                  <option value="hour">{t('interval.hour', $lang)}</option>
+                  <option value="day">{t('interval.day', $lang)}</option>
+                </select>
+              </div>
+            </div>
           </div>
         {/if}
         <div>
@@ -209,6 +228,59 @@
     display: grid;
     gap: 6px;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .interval-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .interval-row input {
+    width: 80px;
+  }
+
+  .interval-label {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .select-short {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    padding: 8px 24px 8px 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #ffffff;
+  }
+
+  .select-short select {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .select-short-label {
+    font-size: 12px;
+    min-width: 32px;
+    text-align: center;
+  }
+
+  .select-short::after {
+    content: '';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    border-right: 2px solid #6b7280;
+    border-bottom: 2px solid #6b7280;
+    transform: translateY(-50%) rotate(45deg);
+    pointer-events: none;
   }
 
   .field-option {

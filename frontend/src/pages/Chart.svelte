@@ -20,10 +20,12 @@
     let selectedField = ''
     let agg = 'avg'
     let interval = 'minute'
+    let intervalCount = 1
     let fromTs = ''
     let toTs = ''
     let showPoints = true
     let alignTime = false
+    let maxPoints = 5000
     let floatPrecision = 5
     let error = ''
     let addMenuOpen = false
@@ -36,6 +38,7 @@
     let modalFormula = ''
     let modalAgg = 'avg'
     let modalInterval = 'minute'
+    let modalIntervalCount = 1
     let modalFromTs = ''
     let modalToTs = ''
     let modalShowPoints = true
@@ -59,6 +62,9 @@
             const settings = await api.getPublicSettings()
             if (settings && settings.float_precision !== undefined) {
                 floatPrecision = Number(settings.float_precision)
+            }
+            if (settings && settings.max_points !== undefined) {
+                maxPoints = Number(settings.max_points)
             }
             await loadSavedCharts()
             if (topics.length && !selectedTopic) {
@@ -148,6 +154,7 @@
                 isJson: topic ? topic.is_json : true,
                 agg: normalizedAgg,
                 interval: cfg.interval || 'minute',
+                intervalCount: normalizeIntervalCount(cfg.intervalCount),
                 fromTs: cfg.fromTs || '',
                 toTs: cfg.toTs || '',
                 showPoints: cfg.showPoints !== false,
@@ -262,6 +269,7 @@
         modalFormula = ''
         modalAgg = agg
         modalInterval = interval
+        modalIntervalCount = intervalCount
         modalFromTs = fromTs
         modalToTs = toTs
         modalShowPoints = showPoints
@@ -307,6 +315,7 @@
         modalFormula = item.formula || ''
         modalAgg = item.agg
         modalInterval = item.interval
+        modalIntervalCount = item.intervalCount || 1
         modalFromTs = item.fromTs || ''
         modalToTs = item.toTs || ''
         modalShowPoints = item.showPoints !== false
@@ -391,12 +400,19 @@
         return formatNumber(value, floatPrecision)
     }
 
+    function normalizeIntervalCount(value) {
+        const count = Number(value)
+        if (!Number.isFinite(count) || count < 1) return 1
+        return Math.floor(count)
+    }
+
     function buildConfig(item) {
         const base = {
             type: item.type || 'single',
             topic: item.topic,
             agg: item.agg,
             interval: item.interval,
+            intervalCount: item.intervalCount,
             fromTs: item.fromTs,
             toTs: item.toTs,
             showPoints: item.showPoints,
@@ -435,12 +451,13 @@
                 api,
                 item,
                 isAggEnabled,
-                valueFromRow
+                valueFromRow,
+                maxPoints
             )
             if (seriesError) {
                 error = seriesError.startsWith('errors.') ? tr(seriesError) : seriesError
             }
-            item.limitNotice = !!truncated
+            item.limitNotice = truncated ? tr('charts.limitNotice').replace('{max}', String(maxPoints)) : ''
 
             if (!datasets.length) {
                 throw new Error(tr('errors.noData'))
@@ -553,6 +570,7 @@
                 field: modalField,
                 agg: modalAgg,
                 interval: modalInterval,
+                intervalCount: normalizeIntervalCount(modalIntervalCount),
                 fromTs: modalFromTs,
                 toTs: modalToTs,
                 showPoints: modalShowPoints,
@@ -582,6 +600,7 @@
                 channels,
                 agg: modalAgg,
                 interval: modalInterval,
+                intervalCount: normalizeIntervalCount(modalIntervalCount),
                 fromTs: modalFromTs,
                 toTs: modalToTs,
                 showPoints: modalShowPoints,
@@ -617,6 +636,7 @@
                 formula: modalFormula.trim(),
                 agg: modalAgg,
                 interval: modalInterval,
+                intervalCount: normalizeIntervalCount(modalIntervalCount),
                 fromTs: modalFromTs,
                 toTs: modalToTs,
                 showPoints: modalShowPoints,
@@ -645,6 +665,7 @@
         item.isJson = topic ? topic.is_json : true
         item.agg = config.agg
         item.interval = config.interval
+        item.intervalCount = normalizeIntervalCount(config.intervalCount)
         item.fromTs = config.fromTs
         item.toTs = config.toTs
         item.showPoints = config.showPoints
@@ -671,6 +692,7 @@
             isJson: topic ? topic.is_json : true,
             agg: config.agg,
             interval: config.interval,
+            intervalCount: config.intervalCount || 1,
             fromTs: config.fromTs,
             toTs: config.toTs,
             showPoints: config.showPoints,
@@ -863,6 +885,7 @@
         bind:modalFormula
         bind:modalAgg
         bind:modalInterval
+        bind:modalIntervalCount
         bind:modalFromTs
         bind:modalToTs
         bind:modalShowPoints

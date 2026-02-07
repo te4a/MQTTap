@@ -1,6 +1,6 @@
 import {aggregateSeries, alignTimeSeries, buildFormulaEvaluator, palette} from '../chart-utils.js'
 
-export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow) {
+export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, maxPoints = 5000) {
   const type = item.type || 'single'
   let labels = []
   let datasets = []
@@ -15,10 +15,11 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow) {
     }
     if (isAggEnabled(item.agg)) {
       params.agg = item.agg
-      params.interval = item.interval
+      const count = Math.max(1, Number(item.intervalCount) || 1)
+      params.interval = count > 1 ? `${count} ${item.interval}` : item.interval
     } else {
       params.order = 'desc'
-      params.limit = 5000
+      params.limit = maxPoints
     }
     const data = await api.history(params)
     const rows = data.rows || []
@@ -51,10 +52,11 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow) {
     }
     if (isAggEnabled(item.agg)) {
       params.agg = item.agg
-      params.interval = item.interval
+      const count = Math.max(1, Number(item.intervalCount) || 1)
+      params.interval = count > 1 ? `${count} ${item.interval}` : item.interval
     } else {
       params.order = 'desc'
-      params.limit = 5000
+      params.limit = maxPoints
     }
     const data = await api.history(params)
     const rows = data.rows || []
@@ -84,7 +86,7 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow) {
       from_ts: item.fromTs || undefined,
       to_ts: item.toTs || undefined,
       order: 'desc',
-      limit: 5000
+      limit: maxPoints
     }
     const data = await api.history(params)
     const rows = data.rows || []
@@ -112,7 +114,13 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow) {
       rawFilteredLabels.push(rawLabels[index])
     })
     if (isAggEnabled(item.agg)) {
-      const aggregated = aggregateSeries(rawFilteredLabels, rawValues, item.interval, item.agg)
+      const aggregated = aggregateSeries(
+        rawFilteredLabels,
+        rawValues,
+        item.interval,
+        item.agg,
+        item.intervalCount || 1
+      )
       labels = aggregated.labels
       datasets = [
         {
@@ -146,6 +154,13 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow) {
   }
 
   const alignInterval = isAggEnabled(item.agg) ? item.interval : null
-  const aligned = alignTimeSeries(labels, datasets, alignInterval, item.alignTime)
+  const aligned = alignTimeSeries(
+    labels,
+    datasets,
+    alignInterval,
+    item.alignTime,
+    maxPoints,
+    item.intervalCount || 1
+  )
   return {labels: aligned.labels, datasets: aligned.datasets, error, truncated: aligned.truncated}
 }

@@ -85,9 +85,16 @@ export function buildScales(axisIds, tickCallback, axisColors = {}, formatNumber
   return scales
 }
 
-function bucketDate(value, interval) {
+function bucketDate(value, interval, intervalCount = 1) {
+  if (!interval) return null
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return null
+  if (intervalCount > 1) {
+    const stepMs = (INTERVAL_MS[interval] || 0) * intervalCount
+    if (!stepMs) return null
+    const bucket = Math.floor(d.getTime() / stepMs) * stepMs
+    return new Date(bucket)
+  }
   const result = new Date(d)
   if (interval === 'day') {
     result.setHours(0, 0, 0, 0)
@@ -101,12 +108,12 @@ function bucketDate(value, interval) {
   return result
 }
 
-export function aggregateSeries(labels, values, interval, aggMode) {
+export function aggregateSeries(labels, values, interval, aggMode, intervalCount = 1) {
   const buckets = new Map()
   labels.forEach((label, index) => {
     const value = values[index]
     if (value === null || value === undefined || !Number.isFinite(value)) return
-    const bucket = bucketDate(label, interval)
+    const bucket = bucketDate(label, interval, intervalCount)
     if (!bucket) return
     const key = bucket.toISOString()
     if (!buckets.has(key)) {
@@ -153,15 +160,15 @@ function median(values) {
   return sorted[Math.floor(sorted.length / 2)]
 }
 
-export function alignTimeSeries(labels, datasets, interval, enabled) {
+export function alignTimeSeries(labels, datasets, interval, enabled, maxPoints = 5000, intervalCount = 1) {
   if (!enabled || labels.length < 2) return {labels, datasets, truncated: false}
   const times = labels.map((value) => {
     const d = new Date(value)
     return Number.isNaN(d.getTime()) ? null : d.getTime()
   })
   if (times.some(value => value === null)) return {labels, datasets, truncated: false}
-  const stepFromInterval = interval ? INTERVAL_MS[interval] : null
-  let stepMs = stepFromInterval
+  const baseStep = interval ? INTERVAL_MS[interval] : null
+  let stepMs = baseStep ? baseStep * Math.max(1, intervalCount) : null
   if (!stepMs) {
     const deltas = []
     for (let i = 1; i < times.length; i += 1) {
@@ -174,8 +181,9 @@ export function alignTimeSeries(labels, datasets, interval, enabled) {
   const start = times[0]
   const end = times[times.length - 1]
   let total = Math.floor((end - start) / stepMs) + 1
-  const truncated = total > 5000
-  if (truncated) total = 5000
+  const limit = Number.isFinite(maxPoints) ? Math.max(1, maxPoints) : 5000
+  const truncated = total > limit
+  if (truncated) total = limit
   const indexByTime = new Map()
   times.forEach((value, index) => indexByTime.set(value, index))
   const fullLabels = []

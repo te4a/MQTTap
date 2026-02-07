@@ -6,6 +6,7 @@
   let role = 'user'
   let code = ''
   let isActive = true
+  let isSingleUse = false
   let error = ''
   let message = ''
   let isAdmin = false
@@ -29,7 +30,7 @@
     error = ''
     message = ''
     try {
-      const payload = { role_name: role, is_active: isActive }
+      const payload = { role_name: role, is_active: isActive, is_single_use: isSingleUse }
       if (code.trim()) payload.code = code.trim()
       const created = await api.createInvite(payload)
       invites = [...invites, created]
@@ -47,7 +48,8 @@
       const payload = {
         code: item.code,
         role_name: item.role_name,
-        is_active: item.is_active
+        is_active: item.is_active,
+        is_single_use: item.is_single_use
       }
       const updated = await api.updateInvite(item.id, payload)
       invites = invites.map(inv => (inv.id === updated.id ? updated : inv))
@@ -94,6 +96,12 @@
         <option value={false}>{t('common.false', $lang)}</option>
       </select>
 
+      <label>{t('common.singleUse', $lang)}</label>
+      <select bind:value={isSingleUse}>
+        <option value={true}>{t('common.true', $lang)}</option>
+        <option value={false}>{t('common.false', $lang)}</option>
+      </select>
+
       <button on:click={createInvite}>{t('invites.create', $lang)}</button>
     </div>
 
@@ -112,6 +120,7 @@
             <th>{t('common.code', $lang)}</th>
             <th>{t('common.role', $lang)}</th>
             <th>{t('common.active', $lang)}</th>
+            <th>{t('common.singleUse', $lang)}</th>
             <th>{t('common.actions', $lang)}</th>
           </tr>
         </thead>
@@ -128,6 +137,12 @@
               </td>
               <td>
                 <select bind:value={inv.is_active}>
+                  <option value={true}>{t('common.true', $lang)}</option>
+                  <option value={false}>{t('common.false', $lang)}</option>
+                </select>
+              </td>
+              <td>
+                <select bind:value={inv.is_single_use}>
                   <option value={true}>{t('common.true', $lang)}</option>
                   <option value={false}>{t('common.false', $lang)}</option>
                 </select>

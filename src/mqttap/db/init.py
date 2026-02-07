@@ -49,6 +49,7 @@ async def init_base_schema(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
         await _ensure_users_schema(conn)
+        await _ensure_invites_schema(conn)
         await seed_settings_if_empty(conn)
         await _seed_roles_and_admin(conn)
 
@@ -128,4 +129,18 @@ async def _ensure_users_schema(conn) -> None:
     )
     await conn.execute(
         text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false")
+    )
+    await conn.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS max_points INTEGER NOT NULL DEFAULT 5000")
+    )
+    await conn.execute(
+        text("UPDATE users SET max_points = 5000 WHERE max_points IS NULL")
+    )
+
+
+async def _ensure_invites_schema(conn) -> None:
+    await conn.execute(
+        text(
+            "ALTER TABLE invites ADD COLUMN IF NOT EXISTS is_single_use BOOLEAN NOT NULL DEFAULT false"
+        )
     )

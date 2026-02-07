@@ -16,6 +16,7 @@ class UserInfo(BaseModel):
     username: str
     email: EmailStr | None = None
     role: str
+    max_points: int
 
 
 class ChangePasswordRequest(BaseModel):
@@ -25,6 +26,7 @@ class ChangePasswordRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     email: EmailStr | None = None
+    max_points: int | None = None
 
 
 class RegisterRequest(BaseModel):
@@ -38,9 +40,11 @@ class InviteCreateRequest(BaseModel):
     code: str | None = None
     role_name: str
     is_active: bool = True
+    is_single_use: bool = False
 
 
 class InviteUpdateRequest(BaseModel):
     code: str | None = None
     role_name: str | None = None
     is_active: bool | None = None
+    is_single_use: bool | None = None

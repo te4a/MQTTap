@@ -1,3 +1,6 @@
+import { get } from 'svelte/store'
+import { lang, t } from './i18n.js'
+
 const API_BASE = import.meta.env.VITE_API_BASE || `${window.location.origin}/api`
 
 export function getToken() {
@@ -31,11 +34,42 @@ async function request(path, options = {}) {
     handleUnauthorized()
   }
   if (!resp.ok) {
-    const text = await resp.text()
-    throw new Error(text || resp.statusText)
+    const rawText = await resp.text()
+    let detail = rawText
+    try {
+      const data = JSON.parse(rawText)
+      detail = data?.detail ? String(data.detail) : rawText
+    } catch {
+      detail = rawText
+    }
+    const message = translateError(detail || resp.statusText)
+    throw new Error(message || resp.statusText)
   }
   if (resp.status === 204) return null
   return resp.json()
+}
+
+const ERROR_MAP = {
+  'Username already exists': 'errors.usernameExists',
+  'Email already exists': 'errors.emailExists',
+  'Invalid invite': 'errors.invalidInvite',
+  'Invalid invite role': 'errors.invalidInvite',
+  'Invite code already exists': 'errors.inviteCodeExists',
+  'Invalid credentials': 'errors.invalidCredentials',
+  'Account pending approval': 'errors.accountPending',
+  'Invalid token': 'errors.invalidToken',
+  'Admin only': 'errors.adminOnly',
+  'invalid role': 'errors.invalidRole',
+  'User not found': 'errors.userNotFound',
+  'Invalid current password': 'errors.invalidCurrentPassword',
+  'Chart not found': 'errors.chartNotFound'
+}
+
+function translateError(detail) {
+  if (!detail) return ''
+  const key = ERROR_MAP[detail]
+  if (!key) return detail
+  return t(key, get(lang))
 }
 
 function toQuery(params) {
