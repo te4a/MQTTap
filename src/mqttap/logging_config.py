@@ -4,8 +4,10 @@ from pathlib import Path
 
 def get_logging_config() -> dict:
     level = os.getenv("MQTTAP_LOG_LEVEL", "INFO").upper()
-    log_file = os.getenv("MQTTAP_LOG_FILE", "logs/mqttap.log")
-    Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+    app_log_file = os.getenv("MQTTAP_LOG_FILE", "logs/mqttap.log")
+    uvicorn_log_file = os.getenv("MQTTAP_UVICORN_LOG_FILE", "logs/uvicorn.log")
+    Path(app_log_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(uvicorn_log_file).parent.mkdir(parents=True, exist_ok=True)
     return {
         "version": 1,
         "disable_existing_loggers": False,
@@ -23,7 +25,13 @@ def get_logging_config() -> dict:
             "file": {
                 "class": "logging.FileHandler",
                 "formatter": "default",
-                "filename": log_file,
+                "filename": app_log_file,
+                "encoding": "utf-8",
+            },
+            "uvicorn_file": {
+                "class": "logging.FileHandler",
+                "formatter": "default",
+                "filename": uvicorn_log_file,
                 "encoding": "utf-8",
             }
         },
@@ -32,8 +40,20 @@ def get_logging_config() -> dict:
             "level": level,
         },
         "loggers": {
-            "uvicorn": {"level": level},
-            "uvicorn.error": {"level": level},
-            "uvicorn.access": {"level": level},
+            "uvicorn": {
+                "handlers": ["console", "uvicorn_file"],
+                "level": level,
+                "propagate": False,
+            },
+            "uvicorn.error": {
+                "handlers": ["console", "uvicorn_file"],
+                "level": level,
+                "propagate": False,
+            },
+            "uvicorn.access": {
+                "handlers": ["console", "uvicorn_file"],
+                "level": level,
+                "propagate": False,
+            },
         },
     }

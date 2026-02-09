@@ -5,6 +5,7 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, ma
   let labels = []
   let datasets = []
   let error = ''
+  const limit = Number.isFinite(maxPoints) ? Math.max(1, maxPoints) : 5000
 
   if (type === 'single') {
     const params = {
@@ -153,14 +154,33 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, ma
     }
   }
 
+  const trimmed = trimSeries(labels, datasets, limit)
   const alignInterval = isAggEnabled(item.agg) ? item.interval : null
   const aligned = alignTimeSeries(
-    labels,
-    datasets,
+    trimmed.labels,
+    trimmed.datasets,
     alignInterval,
     item.alignTime,
-    maxPoints,
+    limit,
     item.intervalCount || 1
   )
-  return {labels: aligned.labels, datasets: aligned.datasets, error, truncated: aligned.truncated}
+  return {
+    labels: aligned.labels,
+    datasets: aligned.datasets,
+    error,
+    truncated: trimmed.truncated || aligned.truncated
+  }
+}
+
+function trimSeries(labels, datasets, limit) {
+  if (!limit || labels.length <= limit) {
+    return {labels, datasets, truncated: false}
+  }
+  const start = labels.length - limit
+  const trimmedLabels = labels.slice(start)
+  const trimmedDatasets = datasets.map(dataset => ({
+    ...dataset,
+    data: dataset.data.slice(start)
+  }))
+  return {labels: trimmedLabels, datasets: trimmedDatasets, truncated: true}
 }

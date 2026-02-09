@@ -70,6 +70,7 @@ async def health() -> dict[str, str]:
 @api_router.post("/auth/login", response_model=TokenResponse)
 async def login(payload: LoginRequest) -> TokenResponse:
     token = await authenticate(payload.username, payload.password)
+    logger.info("Login success: %s", payload.username)
     return TokenResponse(access_token=token)
 
 
@@ -115,6 +116,7 @@ async def change_password(payload: ChangePasswordRequest, user=Depends(require_u
 @api_router.post("/auth/register")
 async def register(payload: RegisterRequest) -> dict[str, str]:
     if not payload.username or not payload.password:
+        logger.warning("Registration failed: missing fields")
         raise HTTPException(status_code=400, detail="username and password required")
 
     email = payload.email
@@ -129,6 +131,7 @@ async def register(payload: RegisterRequest) -> dict[str, str]:
             )
         ).first()
         if existing:
+            logger.warning("Registration failed: username exists (%s)", payload.username)
             raise HTTPException(status_code=400, detail="Username already exists")
         if email:
             existing_email = (
@@ -138,6 +141,7 @@ async def register(payload: RegisterRequest) -> dict[str, str]:
                 )
             ).first()
             if existing_email:
+                logger.warning("Registration failed: email exists (%s)", email)
                 raise HTTPException(status_code=400, detail="Email already exists")
 
         if invite_code:
@@ -155,8 +159,10 @@ async def register(payload: RegisterRequest) -> dict[str, str]:
                 )
             ).mappings().first()
             if not invite or not invite["is_active"]:
+                logger.warning("Registration failed: invalid invite (%s)", invite_code)
                 raise HTTPException(status_code=400, detail="Invalid invite")
             if invite["role_name"] not in ("admin", "user"):
+                logger.warning("Registration failed: invalid invite role (%s)", invite.get("role_name"))
                 raise HTTPException(status_code=400, detail="Invalid invite role")
             role_name = invite["role_name"]
 
@@ -174,6 +180,10 @@ async def register(payload: RegisterRequest) -> dict[str, str]:
                 "role": role_name,
             },
         )
+        if invite_code:
+            logger.info("Registration success: %s (invite %s)", payload.username, invite_code)
+        else:
+            logger.info("Registration success: %s", payload.username)
         if invite_code and invite and invite["is_single_use"]:
             await conn.execute(
                 text("UPDATE invites SET is_active = false WHERE code = :code"),
@@ -244,6 +254,9 @@ async def update_settings(payload: dict[str, Any], user=Depends(require_admin)) 
         "default_interval",
     }
     filtered = {k: v for k, v in payload.items() if k in allowed}
+    if filtered:
+        logged_keys = sorted([k for k in filtered.keys() if k != "mqtt_password"])
+        logger.info("Settings updated by user_id=%s keys=%s", user["id"], ",".join(logged_keys))
     await save_settings(engine, filtered)
     return filtered
 

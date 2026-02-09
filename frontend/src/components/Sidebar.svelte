@@ -32,13 +32,6 @@
       {/if}
     {/each}
   </nav>
-  <div class="hint">
-    {#if loggedIn}
-      {t('layout.loggedIn', $lang)}
-    {:else}
-      {t('layout.loginHint', $lang)}
-    {/if}
-  </div>
 </aside>
 
 <style>
@@ -87,9 +80,4 @@
     pointer-events: none;
   }
 
-  .hint {
-    margin-top: 24px;
-    font-size: 12px;
-    color: #9ca3af;
-  }
 </style>

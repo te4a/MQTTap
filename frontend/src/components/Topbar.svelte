@@ -12,10 +12,6 @@
     dispatch('authChange')
   }
 
-  function roleLabel(role) {
-    if (!role) return ''
-    return t(`role.${role}`, $lang)
-  }
 </script>
 
 <header class="topbar">
@@ -27,7 +23,7 @@
     {/each}
   </select>
   {#if user}
-    <div class="user">{user.username} · {roleLabel(user.role)}</div>
+    <div class="user">{user.username}</div>
     <button on:click={logout}>{t('topbar.logout', $lang)}</button>
   {/if}
 </header>

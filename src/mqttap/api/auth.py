@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import logging
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -11,6 +12,7 @@ from mqttap.security import verify_password
 
 
 security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 
 def _create_access_token(user_id: int, role: str) -> str:
@@ -37,8 +39,10 @@ async def authenticate(username: str, password: str) -> str:
     async with engine.begin() as conn:
         row = (await conn.execute(sql, {"username": username})).mappings().first()
     if not row or not verify_password(password, row["password_hash"]):
+        logger.warning("Login failed: invalid credentials (%s)", username)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if row["role"] == "pending":
+        logger.warning("Login failed: pending account (%s)", username)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account pending approval")
     return _create_access_token(int(row["id"]), row["role"])
 

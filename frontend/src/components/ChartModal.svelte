@@ -14,7 +14,7 @@
   export let modalIntervalCount = 1
   export let modalFromTs = ''
   export let modalToTs = ''
-  export let modalShowPoints = true
+  export let modalShowPoints = false
   export let modalAlignTime = false
   export let modalError = ''
   export let modalFormulaError = ''

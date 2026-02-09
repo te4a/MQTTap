@@ -9,6 +9,12 @@
   let maxPoints = 5000
   let message = ''
   let error = ''
+  let emailMessage = ''
+  let emailError = ''
+  let passwordMessage = ''
+  let passwordError = ''
+  let chartMessage = ''
+  let chartError = ''
 
   async function load() {
     try {
@@ -21,51 +27,51 @@
   }
 
   async function saveEmail() {
-    error = ''
-    message = ''
+    emailError = ''
+    emailMessage = ''
     try {
       await api.updateProfile({ email: email || null })
-      message = t('messages.emailUpdated', $lang)
+      emailMessage = t('messages.emailUpdated', $lang)
     } catch (err) {
-      error = err.message
+      emailError = err.message
     }
   }
 
   async function submit() {
-    error = ''
-    message = ''
+    passwordError = ''
+    passwordMessage = ''
     if (!currentPassword || !newPassword) {
-      error = t('errors.required', $lang)
+      passwordError = t('errors.required', $lang)
       return
     }
     if (newPassword !== confirmPassword) {
-      error = t('errors.passwordsMismatch', $lang)
+      passwordError = t('errors.passwordsMismatch', $lang)
       return
     }
     try {
       await api.changePassword(currentPassword, newPassword)
-      message = t('messages.passwordUpdated', $lang)
+      passwordMessage = t('messages.passwordUpdated', $lang)
       currentPassword = ''
       newPassword = ''
       confirmPassword = ''
     } catch (err) {
-      error = err.message
+      passwordError = err.message
     }
   }
 
   async function saveMaxPoints() {
-    error = ''
-    message = ''
+    chartError = ''
+    chartMessage = ''
     const value = Number(maxPoints)
     if (!Number.isFinite(value) || value < 1 || value > 5000) {
-      error = t('errors.invalidMaxPoints', $lang)
+      chartError = t('errors.invalidMaxPoints', $lang)
       return
     }
     try {
       await api.updateProfile({ max_points: value })
-      message = t('messages.saved', $lang)
+      chartMessage = t('messages.saved', $lang)
     } catch (err) {
-      error = err.message
+      chartError = err.message
     }
   }
 
@@ -88,6 +94,12 @@
       <div class="section-actions">
         <button class="ghost" on:click={saveEmail}>{t('profile.updateEmail', $lang)}</button>
       </div>
+      {#if emailMessage}
+        <div class="ok">{emailMessage}</div>
+      {/if}
+      {#if emailError}
+        <div class="error">{emailError}</div>
+      {/if}
     </div>
   </div>
 
@@ -106,6 +118,12 @@
       <div class="section-actions">
         <button on:click={submit}>{t('profile.updatePassword', $lang)}</button>
       </div>
+      {#if passwordMessage}
+        <div class="ok">{passwordMessage}</div>
+      {/if}
+      {#if passwordError}
+        <div class="error">{passwordError}</div>
+      {/if}
     </div>
   </div>
 
@@ -117,12 +135,15 @@
       <div class="section-actions">
         <button class="ghost" on:click={saveMaxPoints}>{t('profile.updateMaxPoints', $lang)}</button>
       </div>
+      {#if chartMessage}
+        <div class="ok">{chartMessage}</div>
+      {/if}
+      {#if chartError}
+        <div class="error">{chartError}</div>
+      {/if}
     </div>
   </div>
 
-  {#if message}
-    <div class="ok">{message}</div>
-  {/if}
   {#if error}
     <div class="error">{error}</div>
   {/if}

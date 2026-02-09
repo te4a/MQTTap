@@ -23,7 +23,7 @@
     let intervalCount = 1
     let fromTs = ''
     let toTs = ''
-    let showPoints = true
+    let showPoints = false
     let alignTime = false
     let maxPoints = 5000
     let floatPrecision = 5
@@ -41,7 +41,7 @@
     let modalIntervalCount = 1
     let modalFromTs = ''
     let modalToTs = ''
-    let modalShowPoints = true
+    let modalShowPoints = false
     let modalAlignTime = false
     let modalError = ''
     let modalFormulaError = ''
@@ -55,6 +55,7 @@
     const refreshMs = 5000
     let dragId = null
     let resizeState = null
+    let documentClickHandler = null
 
     onMount(async () => {
         try {
@@ -81,12 +82,24 @@
             })
         }
         window.addEventListener('resize', windowResizeHandler)
+        documentClickHandler = (event) => {
+            if (!addMenuOpen && !charts.some(item => item.menuOpen)) return
+            const target = event.target
+            if (!(target instanceof Element)) return
+            if (target.closest('.add-menu') || target.closest('.menu')) return
+            addMenuOpen = false
+            charts = charts.map(item => ({...item, menuOpen: false}))
+        }
+        document.addEventListener('click', documentClickHandler)
     })
 
     onDestroy(() => {
         if (refreshTimer) clearInterval(refreshTimer)
         if (windowResizeHandler) {
             window.removeEventListener('resize', windowResizeHandler)
+        }
+        if (documentClickHandler) {
+            document.removeEventListener('click', documentClickHandler)
         }
     })
 
@@ -288,16 +301,27 @@
     function exportChart(item) {
         const config = buildConfig(item)
         const payload = {name: item.label, config}
-        const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'})
+        const json = JSON.stringify(payload, null, 2)
+        const blob = new Blob([json], {type: 'application/json'})
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         const safeName = (item.label || 'chart').replace(/[^a-z0-9_-]+/gi, '_')
+        const hash = shortHash(json)
         link.href = url
-        link.download = `${safeName}.json`
+        link.download = `${safeName}-${hash}.json`
         document.body.appendChild(link)
         link.click()
         link.remove()
         URL.revokeObjectURL(url)
+    }
+
+    function shortHash(text) {
+        let hash = 2166136261
+        for (let i = 0; i < text.length; i += 1) {
+            hash ^= text.charCodeAt(i)
+            hash = Math.imul(hash, 16777619)
+        }
+        return (hash >>> 0).toString(16).padStart(8, '0').slice(0, 8)
     }
 
     function openEditModal(item) {

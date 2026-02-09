@@ -76,6 +76,35 @@
     }
   }
 
+  function exportCsv() {
+    if (!rows.length) return
+    const columns = Object.keys(rows[0])
+    const csvRows = [columns.join(',')]
+    rows.forEach((row) => {
+      const values = columns.map((col) => {
+        const value = row[col]
+        if (value === null || value === undefined) return ''
+        const text = String(value)
+        if (/[",\n]/.test(text)) {
+          return `"${text.replace(/"/g, '""')}"`
+        }
+        return text
+      })
+      csvRows.push(values.join(','))
+    })
+    const csv = csvRows.join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const safeName = (selectedTopic || 'history').replace(/[^a-z0-9_-]+/gi, '_')
+    link.href = url
+    link.download = `${safeName}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   loadTopics()
 </script>
 
@@ -137,6 +166,7 @@
       <input type="datetime-local" bind:value={toTs} />
     </div>
     <button on:click={loadHistory} disabled={loading}>{t('history.load', $lang)}</button>
+    <button class="ghost" on:click={exportCsv} disabled={!rows.length}>{t('history.exportCsv', $lang)}</button>
   </div>
 
   {#if error}
