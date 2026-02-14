@@ -133,6 +133,33 @@
         return topic ? topic.fields : []
     }
 
+    function isFieldAllowed(topicName, field) {
+        if (!topicName || !field) return false
+        const allowed = getFieldsForTopic(topicName)
+        return allowed.includes(field)
+    }
+
+    function isChartConfigAllowed(config) {
+        if (!config || !config.topic) return false
+        const topic = getTopicByName(config.topic)
+        if (!topic) return false
+        const type = config.type || 'single'
+        if (type === 'single') {
+            return isFieldAllowed(config.topic, config.field)
+        }
+        if (type === 'multi') {
+            const channels = normalizeChannels(config.channels || [])
+            return channels.length > 0 && channels.every((channel) => isFieldAllowed(config.topic, channel.field))
+        }
+        if (type === 'formula') {
+            const formulaFields = Array.isArray(config.fields) && config.fields.length
+                ? config.fields
+                : extractFormulaFields(config.formula || '')
+            return formulaFields.length > 0 && formulaFields.every((field) => isFieldAllowed(config.topic, field))
+        }
+        return false
+    }
+
     async function refreshLiveCharts() {
         for (const item of charts) {
             if (!item.toTs) {
@@ -147,6 +174,9 @@
         let index = 0
         for (const item of saved) {
             const cfg = typeof item.config === 'string' ? JSON.parse(item.config) : (item.config || {})
+            if (!isChartConfigAllowed(cfg)) {
+                continue
+            }
             const topic = getTopicByName(cfg.topic)
             const normalizedAgg = cfg.agg === 'none' ? 'off' : (cfg.agg || 'avg')
             const type = cfg.type || 'single'
@@ -259,6 +289,9 @@
                 if (invalidFields.length) {
                     throw new Error(`${tr('errors.unknownFields')}: ${invalidFields.join(', ')}`)
                 }
+            }
+            if (!isChartConfigAllowed(normalized)) {
+                throw new Error(tr('errors.signalAccessDenied'))
             }
             await createChartItem(normalized, topic)
         } catch (err) {
@@ -578,6 +611,10 @@
             modalError = tr('errors.required')
             return
         }
+        if (!getTopicByName(modalTopic)) {
+            modalError = tr('errors.topicAccessDenied')
+            return
+        }
         const topic = getTopicByName(modalTopic)
         if ((modalType === 'multi' || modalType === 'formula') && (!topic || !topic.is_json)) {
             modalError = tr('errors.onlyJsonTopics')
@@ -586,6 +623,10 @@
         if (modalType === 'single') {
             if (!modalField) {
                 modalError = tr('errors.fieldRequired')
+                return
+            }
+            if (!isFieldAllowed(modalTopic, modalField)) {
+                modalError = tr('errors.signalAccessDenied')
                 return
             }
             const config = {
@@ -611,6 +652,11 @@
         } else if (modalType === 'multi') {
             if (!modalSelectedFields.length) {
                 modalError = tr('errors.selectUpToFields')
+                return
+            }
+            const hasDenied = modalSelectedFields.some((field) => !isFieldAllowed(modalTopic, field))
+            if (hasDenied) {
+                modalError = tr('errors.signalAccessDenied')
                 return
             }
             const channels = modalSelectedFields.slice(0, 5).map((field, index) => ({

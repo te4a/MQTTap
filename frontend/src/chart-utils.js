@@ -32,10 +32,13 @@ export function makeLabelFormatter(labels) {
       },
     ]
 
-    return parts
+    const rendered = parts
       .filter(p => !p.same)
       .map((p, i) => (i === 0 ? p.value : p.sep + p.value))
       .join('')
+    const prefix = allSameHour && !allSameMinute ? ':' : ''
+    const suffix = allSameMinute && !allSameSecond ? ':' : ''
+    return `${prefix}${rendered}${suffix}`
   }
 
   return {

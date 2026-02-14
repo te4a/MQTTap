@@ -265,7 +265,7 @@ async def update_settings(payload: dict[str, Any], user=Depends(require_admin)) 
 async def list_users(user=Depends(require_admin)) -> list[dict[str, Any]]:
     sql = text(
         """
-        SELECT users.id, users.username, users.email, roles.name AS role, users.created_at
+        SELECT users.id, users.username, users.email, users.allowed_topics, users.allowed_signals, roles.name AS role, users.created_at
         FROM users
         JOIN roles ON roles.id = users.role_id
         ORDER BY users.id
@@ -282,15 +282,17 @@ async def create_user(payload: dict[str, Any], user=Depends(require_admin)) -> d
     email = payload.get("email")
     password = payload.get("password")
     role = payload.get("role", "user")
+    allowed_topics = _normalize_allowed_topics(payload.get("allowed_topics", None))
+    allowed_signals = _normalize_allowed_signals(payload.get("allowed_signals", None))
     if not username or not password:
         raise HTTPException(status_code=400, detail="username and password required")
     if role not in ("admin", "user", "pending"):
         raise HTTPException(status_code=400, detail="invalid role")
     sql = text(
         """
-        INSERT INTO users (username, email, password_hash, role_id)
-        VALUES (:username, :email, :password_hash, (SELECT id FROM roles WHERE name = :role))
-        RETURNING id, username, email, role_id, created_at
+        INSERT INTO users (username, email, password_hash, role_id, allowed_topics, allowed_signals)
+        VALUES (:username, :email, :password_hash, (SELECT id FROM roles WHERE name = :role), CAST(:allowed_topics AS JSONB), CAST(:allowed_signals AS JSONB))
+        RETURNING id, username, email, allowed_topics, allowed_signals, role_id, created_at
         """
     )
     async with engine.begin() as conn:
@@ -302,6 +304,8 @@ async def create_user(payload: dict[str, Any], user=Depends(require_admin)) -> d
                     "email": email,
                     "password_hash": hash_password(password),
                     "role": role,
+                    "allowed_topics": json.dumps(allowed_topics, ensure_ascii=False) if allowed_topics is not None else None,
+                    "allowed_signals": json.dumps(allowed_signals, ensure_ascii=False) if allowed_signals is not None else None,
                 },
             )
         ).mappings().first()
@@ -314,6 +318,8 @@ async def update_user(user_id: int, payload: dict[str, Any], user=Depends(requir
     email = payload.get("email")
     password = payload.get("password")
     role = payload.get("role")
+    allowed_topics = _normalize_allowed_topics(payload["allowed_topics"]) if "allowed_topics" in payload else None
+    allowed_signals = _normalize_allowed_signals(payload["allowed_signals"]) if "allowed_signals" in payload else None
     if role and role not in ("admin", "user", "pending"):
         raise HTTPException(status_code=400, detail="invalid role")
     updates = []
@@ -321,7 +327,7 @@ async def update_user(user_id: int, payload: dict[str, Any], user=Depends(requir
     if username:
         updates.append("username = :username")
         params["username"] = username
-    if email:
+    if "email" in payload:
         updates.append("email = :email")
         params["email"] = email
     if password:
@@ -330,6 +336,16 @@ async def update_user(user_id: int, payload: dict[str, Any], user=Depends(requir
     if role:
         updates.append("role_id = (SELECT id FROM roles WHERE name = :role)")
         params["role"] = role
+    if "allowed_topics" in payload:
+        updates.append("allowed_topics = CAST(:allowed_topics AS JSONB)")
+        params["allowed_topics"] = (
+            json.dumps(allowed_topics, ensure_ascii=False) if allowed_topics is not None else None
+        )
+    if "allowed_signals" in payload:
+        updates.append("allowed_signals = CAST(:allowed_signals AS JSONB)")
+        params["allowed_signals"] = (
+            json.dumps(allowed_signals, ensure_ascii=False) if allowed_signals is not None else None
+        )
     if not updates:
         raise HTTPException(status_code=400, detail="no fields to update")
     sql = text(
@@ -337,7 +353,7 @@ async def update_user(user_id: int, payload: dict[str, Any], user=Depends(requir
         UPDATE users
         SET {', '.join(updates)}
         WHERE id = :user_id
-        RETURNING id, username, email, role_id, created_at
+        RETURNING id, username, email, allowed_topics, allowed_signals, role_id, created_at
         """
     )
     async with engine.begin() as conn:
@@ -452,6 +468,7 @@ async def delete_invite(invite_id: int, user=Depends(require_admin)) -> dict[str
 
 @api_router.get("/charts")
 async def list_charts(user=Depends(require_user)) -> list[dict[str, Any]]:
+    allowed_topics, allowed_signals = await _get_user_acl(user)
     sql = text(
         """
         SELECT id, name, config, created_at
@@ -470,6 +487,26 @@ async def list_charts(user=Depends(require_user)) -> list[dict[str, Any]]:
                 item["config"] = json.loads(item["config"])
             except json.JSONDecodeError:
                 item["config"] = {}
+        topic = item.get("config", {}).get("topic") if isinstance(item.get("config"), dict) else None
+        if topic and not _is_topic_allowed(topic, allowed_topics):
+            continue
+        if topic and allowed_signals is not None:
+            cfg = item.get("config", {})
+            restricted = allowed_signals.get(topic)
+            if restricted is not None:
+                chart_type = cfg.get("type", "single")
+                if chart_type == "single" and cfg.get("field") not in restricted:
+                    continue
+                if chart_type == "multi":
+                    channels = cfg.get("channels") or []
+                    fields = [c.get("field") if isinstance(c, dict) else c for c in channels]
+                    fields = [field for field in fields if isinstance(field, str)]
+                    if not fields or any(field not in restricted for field in fields):
+                        continue
+                if chart_type == "formula":
+                    fields = cfg.get("fields") or []
+                    if not fields or any(field not in restricted for field in fields):
+                        continue
         result.append(item)
     return result
 
@@ -478,6 +515,36 @@ async def list_charts(user=Depends(require_user)) -> list[dict[str, Any]]:
 async def create_chart(payload: dict[str, Any], user=Depends(require_user)) -> dict[str, Any]:
     if "config" not in payload:
         raise HTTPException(status_code=400, detail="config required")
+    allowed_topics, allowed_signals = await _get_user_acl(user)
+    config_payload = payload["config"]
+    if isinstance(config_payload, dict):
+        config_topic = config_payload.get("topic")
+    else:
+        try:
+            parsed = json.loads(config_payload)
+        except (TypeError, json.JSONDecodeError):
+            parsed = {}
+        config_topic = parsed.get("topic")
+    if config_topic and not _is_topic_allowed(config_topic, allowed_topics):
+        raise HTTPException(status_code=403, detail="Topic access denied")
+    if config_topic and allowed_signals is not None:
+        restricted = allowed_signals.get(config_topic)
+        if restricted is not None:
+            chart_type = (config_payload.get("type") if isinstance(config_payload, dict) else parsed.get("type")) or "single"
+            if chart_type == "single":
+                field = (config_payload.get("field") if isinstance(config_payload, dict) else parsed.get("field"))
+                if field not in restricted:
+                    raise HTTPException(status_code=403, detail="Signal access denied")
+            elif chart_type == "multi":
+                channels = (config_payload.get("channels") if isinstance(config_payload, dict) else parsed.get("channels")) or []
+                fields = [c.get("field") if isinstance(c, dict) else c for c in channels]
+                fields = [field for field in fields if isinstance(field, str)]
+                if any(field not in restricted for field in fields):
+                    raise HTTPException(status_code=403, detail="Signal access denied")
+            elif chart_type == "formula":
+                fields = (config_payload.get("fields") if isinstance(config_payload, dict) else parsed.get("fields")) or []
+                if any(field not in restricted for field in fields):
+                    raise HTTPException(status_code=403, detail="Signal access denied")
     name = payload.get("name")
     sql = text(
         """
@@ -509,6 +576,36 @@ async def create_chart(payload: dict[str, Any], user=Depends(require_user)) -> d
 async def update_chart(chart_id: int, payload: dict[str, Any], user=Depends(require_user)) -> dict[str, Any]:
     if "config" not in payload:
         raise HTTPException(status_code=400, detail="config required")
+    allowed_topics, allowed_signals = await _get_user_acl(user)
+    config_payload = payload["config"]
+    if isinstance(config_payload, dict):
+        config_topic = config_payload.get("topic")
+    else:
+        try:
+            parsed = json.loads(config_payload)
+        except (TypeError, json.JSONDecodeError):
+            parsed = {}
+        config_topic = parsed.get("topic")
+    if config_topic and not _is_topic_allowed(config_topic, allowed_topics):
+        raise HTTPException(status_code=403, detail="Topic access denied")
+    if config_topic and allowed_signals is not None:
+        restricted = allowed_signals.get(config_topic)
+        if restricted is not None:
+            chart_type = (config_payload.get("type") if isinstance(config_payload, dict) else parsed.get("type")) or "single"
+            if chart_type == "single":
+                field = (config_payload.get("field") if isinstance(config_payload, dict) else parsed.get("field"))
+                if field not in restricted:
+                    raise HTTPException(status_code=403, detail="Signal access denied")
+            elif chart_type == "multi":
+                channels = (config_payload.get("channels") if isinstance(config_payload, dict) else parsed.get("channels")) or []
+                fields = [c.get("field") if isinstance(c, dict) else c for c in channels]
+                fields = [field for field in fields if isinstance(field, str)]
+                if any(field not in restricted for field in fields):
+                    raise HTTPException(status_code=403, detail="Signal access denied")
+            elif chart_type == "formula":
+                fields = (config_payload.get("fields") if isinstance(config_payload, dict) else parsed.get("fields")) or []
+                if any(field not in restricted for field in fields):
+                    raise HTTPException(status_code=403, detail="Signal access denied")
     name = payload.get("name")
     config = payload["config"]
     if isinstance(config, dict):
@@ -587,16 +684,109 @@ def _parse_interval(value: str | None) -> tuple[int, str] | None:
     return count, unit
 
 
+def _normalize_allowed_topics(value: Any) -> list[str] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise HTTPException(status_code=400, detail="allowed_topics must be a list or null")
+    topics: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise HTTPException(status_code=400, detail="allowed_topics must contain strings only")
+        topic = item.strip()
+        if topic:
+            topics.append(topic)
+    return sorted(set(topics))
+
+
+def _normalize_allowed_signals(value: Any) -> dict[str, list[str]] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise HTTPException(status_code=400, detail="allowed_signals must be an object or null")
+    result: dict[str, list[str]] = {}
+    for topic, fields in value.items():
+        if not isinstance(topic, str):
+            raise HTTPException(status_code=400, detail="allowed_signals keys must be topic strings")
+        clean_topic = topic.strip()
+        if not clean_topic:
+            continue
+        if not isinstance(fields, list):
+            raise HTTPException(status_code=400, detail="allowed_signals values must be arrays")
+        clean_fields: list[str] = []
+        for field in fields:
+            if not isinstance(field, str):
+                raise HTTPException(status_code=400, detail="allowed_signals field names must be strings")
+            clean_field = field.strip()
+            if clean_field:
+                clean_fields.append(clean_field)
+        result[clean_topic] = sorted(set(clean_fields))
+    return result
+
+
+def _decode_json_value(value: Any) -> Any:
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    return value
+
+
+async def _get_user_acl(user: dict[str, Any]) -> tuple[set[str] | None, dict[str, set[str]] | None]:
+    async with engine.begin() as conn:
+        row = (
+            await conn.execute(
+                text("SELECT allowed_topics, allowed_signals FROM users WHERE id = :id"),
+                {"id": user["id"]},
+            )
+        ).mappings().first()
+    if not row:
+        return set(), {}
+    raw_topics = _decode_json_value(row.get("allowed_topics"))
+    raw_signals = _decode_json_value(row.get("allowed_signals"))
+    normalized_topics = _normalize_allowed_topics(raw_topics)
+    normalized_signals = _normalize_allowed_signals(raw_signals)
+    topic_set = None if normalized_topics is None else set(normalized_topics)
+    signal_map = None
+    if normalized_signals is not None:
+        signal_map = {topic: set(fields) for topic, fields in normalized_signals.items()}
+    return topic_set, signal_map
+
+
+def _is_topic_allowed(topic: str, allowed_topics: set[str] | None) -> bool:
+    return allowed_topics is None or topic in allowed_topics
+
+
+def _filter_fields_by_acl(
+    topic: str,
+    fields: list[str],
+    allowed_signals: dict[str, set[str]] | None,
+) -> list[str]:
+    if allowed_signals is None:
+        return fields
+    allowed = allowed_signals.get(topic)
+    if allowed is None:
+        return fields
+    return [field for field in fields if field in allowed]
+
+
 @api_router.get("/topics")
 async def list_topics(user=Depends(require_user)) -> list[dict[str, Any]]:
+    allowed_topics, allowed_signals = await _get_user_acl(user)
     sql = text("SELECT topic, table_name, is_json FROM topic_registry ORDER BY topic")
     async with engine.begin() as conn:
         rows = (await conn.execute(sql)).mappings().all()
 
     result = []
     for row in rows:
+        if not _is_topic_allowed(row["topic"], allowed_topics):
+            continue
         columns = await get_table_columns(engine, row["table_name"])
         fields = [c for c in columns.keys() if c not in ("id", "ts")]
+        fields = _filter_fields_by_acl(row["topic"], fields, allowed_signals)
+        if not fields:
+            continue
         result.append(
             {
                 "topic": row["topic"],
@@ -620,6 +810,9 @@ async def history(
     order: str = Query("desc"),
     user=Depends(require_user),
 ) -> dict[str, Any]:
+    allowed_topics, allowed_signals = await _get_user_acl(user)
+    if not _is_topic_allowed(topic, allowed_topics):
+        raise HTTPException(status_code=403, detail="Topic access denied")
     sql = text("SELECT topic, table_name, is_json FROM topic_registry WHERE topic = :topic")
     async with engine.begin() as conn:
         row = (await conn.execute(sql, {"topic": topic})).mappings().first()
@@ -630,11 +823,16 @@ async def history(
     is_json = row["is_json"]
     columns = await get_table_columns(engine, table_name)
     all_fields = [c for c in columns.keys() if c not in ("id", "ts")]
-    requested_fields = _parse_fields(fields) or all_fields
+    visible_fields = _filter_fields_by_acl(topic, all_fields, allowed_signals)
+    if not visible_fields:
+        raise HTTPException(status_code=403, detail="Signal access denied")
+    requested_fields = _parse_fields(fields) or visible_fields
 
     for field in requested_fields:
         if field not in all_fields:
             raise HTTPException(status_code=400, detail=f"Unknown field: {field}")
+        if field not in visible_fields:
+            raise HTTPException(status_code=403, detail="Signal access denied")
 
     dt_from = _parse_dt(from_ts)
     dt_to = _parse_dt(to_ts)

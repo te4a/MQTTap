@@ -51,7 +51,7 @@ def get_logging_config() -> dict:
                 "propagate": False,
             },
             "uvicorn.access": {
-                "handlers": ["console", "uvicorn_file"],
+                "handlers": ["uvicorn_file"],
                 "level": level,
                 "propagate": False,
             },

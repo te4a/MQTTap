@@ -62,7 +62,9 @@ const ERROR_MAP = {
   'invalid role': 'errors.invalidRole',
   'User not found': 'errors.userNotFound',
   'Invalid current password': 'errors.invalidCurrentPassword',
-  'Chart not found': 'errors.chartNotFound'
+  'Chart not found': 'errors.chartNotFound',
+  'Topic access denied': 'errors.topicAccessDenied',
+  'Signal access denied': 'errors.signalAccessDenied'
 }
 
 function translateError(detail) {

@@ -29,10 +29,17 @@
   async function loadTopics() {
     try {
       topics = await api.topics()
-      if (topics.length) {
-        selectedTopic = topics[0].topic
-        updateFields()
+      if (!topics.length) {
+        selectedTopic = ''
+        fields = []
+        selectedFields = []
+        rows = []
+        return
       }
+      if (!topics.some(t => t.topic === selectedTopic)) {
+        selectedTopic = topics[0].topic
+      }
+      updateFields()
     } catch (err) {
       error = err.message
     }
@@ -54,6 +61,19 @@
 
   async function loadHistory() {
     error = ''
+    if (!selectedTopic || !topics.some(t => t.topic === selectedTopic)) {
+      error = t('errors.topicAccessDenied', $lang)
+      return
+    }
+    const allowedFields = getAllowedFields(selectedTopic)
+    selectedFields = selectedFields.filter((field) => allowedFields.includes(field))
+    if (!selectedFields.length) {
+      selectedFields = allowedFields.slice(0, 3)
+    }
+    if (!selectedFields.length) {
+      error = t('errors.signalAccessDenied', $lang)
+      return
+    }
     loading = true
     try {
       const intervalValue = agg !== 'off'
@@ -103,6 +123,11 @@
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
+  }
+
+  function getAllowedFields(topicName) {
+    const topic = topics.find(t => t.topic === topicName)
+    return topic ? (topic.fields || []) : []
   }
 
   loadTopics()
@@ -165,8 +190,8 @@
       <label>{t('common.to', $lang)}</label>
       <input type="datetime-local" bind:value={toTs} />
     </div>
-    <button on:click={loadHistory} disabled={loading}>{t('history.load', $lang)}</button>
-    <button class="ghost" on:click={exportCsv} disabled={!rows.length}>{t('history.exportCsv', $lang)}</button>
+    <button on:click={loadHistory} disabled={loading || !selectedTopic}>{t('history.load', $lang)}</button>
+    <button class="ghost" on:click={exportCsv} disabled={!rows.length || !selectedTopic}>{t('history.exportCsv', $lang)}</button>
   </div>
 
   {#if error}

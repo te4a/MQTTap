@@ -134,6 +134,12 @@ async def _ensure_users_schema(conn) -> None:
         text("ALTER TABLE users ADD COLUMN IF NOT EXISTS max_points INTEGER NOT NULL DEFAULT 5000")
     )
     await conn.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_topics JSONB NULL")
+    )
+    await conn.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_signals JSONB NULL")
+    )
+    await conn.execute(
         text("UPDATE users SET max_points = 5000 WHERE max_points IS NULL")
     )
 
