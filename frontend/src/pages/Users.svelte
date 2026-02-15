@@ -17,6 +17,7 @@
     email: '',
     password: '',
     role: 'user',
+    feature_access: { history: true, charts: true },
     allowed_topics: null,
     allowed_signals: null
   }
@@ -71,8 +72,15 @@
         draftSignals[topic] = (restricted && restricted.length ? restricted : knownFields)
       }
     }
+    const featureAccess = user.feature_access && typeof user.feature_access === 'object'
+      ? user.feature_access
+      : { history: true, charts: true }
     return {
       ...user,
+      feature_access: {
+        history: featureAccess.history !== false,
+        charts: featureAccess.charts !== false
+      },
       topics_open: false,
       all_topics: allowedTopics === null,
       allowed_topics_draft: (allowedTopics === null ? allTopics.slice() : allowedTopics),
@@ -149,7 +157,7 @@
     message = ''
     try {
       await api.createUser(form)
-      form = { username: '', email: '', password: '', role: 'user', allowed_topics: null, allowed_signals: null }
+      form = { username: '', email: '', password: '', role: 'user', feature_access: { history: true, charts: true }, allowed_topics: null, allowed_signals: null }
       message = t('messages.created', $lang)
       await load()
     } catch (err) {
@@ -171,6 +179,22 @@
     error = ''
     try {
       await api.updateUser(user.id, { email: user.email || null })
+      await load()
+    } catch (err) {
+      error = err.message
+    }
+  }
+
+  async function saveFeatureAccess(user) {
+    error = ''
+    try {
+      await api.updateUser(user.id, {
+        feature_access: {
+          history: user.feature_access?.history !== false,
+          charts: user.feature_access?.charts !== false
+        }
+      })
+      message = t('messages.saved', $lang)
       await load()
     } catch (err) {
       error = err.message
@@ -329,6 +353,18 @@
         <option value="admin">{t('role.admin', $lang)}</option>
         <option value="pending">{t('role.pending', $lang)}</option>
       </select>
+
+      <label>{t('users.featureAccess', $lang)}</label>
+      <div class="feature-access">
+        <label class="toggle">
+          <span>{t('nav.history', $lang)}</span>
+          <input type="checkbox" bind:checked={form.feature_access.history} />
+        </label>
+        <label class="toggle">
+          <span>{t('nav.charts', $lang)}</span>
+          <input type="checkbox" bind:checked={form.feature_access.charts} />
+        </label>
+      </div>
     </div>
 
     <button on:click={createUser}>{t('common.create', $lang)}</button>
@@ -349,10 +385,11 @@
       <table>
         <thead>
           <tr>
-            <th>ID</th>
+            <th>{t('common.id', $lang)}</th>
             <th>{t('common.username', $lang)}</th>
             <th>{t('common.email', $lang)}</th>
             <th>{t('common.role', $lang)}</th>
+            <th>{t('users.featureAccess', $lang)}</th>
             <th>{t('users.topicAccess', $lang)}</th>
             <th>{t('common.actions', $lang)}</th>
           </tr>
@@ -374,6 +411,18 @@
                 </select>
               </td>
               <td>
+                <div class="feature-access compact">
+                  <label class="toggle">
+                    <span>{t('nav.history', $lang)}</span>
+                    <input type="checkbox" bind:checked={u.feature_access.history} on:change={() => saveFeatureAccess(u)} />
+                  </label>
+                  <label class="toggle">
+                    <span>{t('nav.charts', $lang)}</span>
+                    <input type="checkbox" bind:checked={u.feature_access.charts} on:change={() => saveFeatureAccess(u)} />
+                  </label>
+                </div>
+              </td>
+              <td>
                 <button class="ghost" on:click={() => toggleTopicsEditor(u)}>
                   {u.topics_open ? t('common.hide', $lang) : t('common.edit', $lang)}
                 </button>
@@ -385,14 +434,14 @@
             </tr>
             {#if u.topics_open}
               <tr>
-                <td colspan="6">
+                <td colspan="7">
                   <div class="topics-editor">
                     <div class="topics-toolbar">
                       <label class="all-topics">
                         <input type="checkbox" checked={u.all_topics} on:change={(e) => setAllTopics(u, e.target.checked)} />
                         <span>{t('users.allTopics', $lang)}</span>
                       </label>
-                      <input class="search" bind:value={accessSearch} placeholder="Search topic/signal" />
+                      <input class="search" bind:value={accessSearch} placeholder={t('users.searchTopicSignal', $lang)} />
                     </div>
                     <div class="topics-tree">
                       {#each topicRows as row}
@@ -583,6 +632,32 @@
   .topics-actions {
     display: flex;
     justify-content: flex-end;
+  }
+
+  .feature-access {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .feature-access.compact {
+    gap: 10px;
+  }
+
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #334155;
+  }
+
+  .toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    padding: 0;
   }
 
   @media (max-width: 700px) {

@@ -78,7 +78,7 @@ async def login(payload: LoginRequest) -> TokenResponse:
 async def me(user=Depends(require_user)) -> UserInfo:
     sql = text(
         """
-        SELECT users.id, users.username, users.email, users.max_points, roles.name AS role
+        SELECT users.id, users.username, users.email, users.max_points, users.feature_access, roles.name AS role
         FROM users
         JOIN roles ON roles.id = users.role_id
         WHERE users.id = :id
@@ -88,12 +88,14 @@ async def me(user=Depends(require_user)) -> UserInfo:
         row = (await conn.execute(sql, {"id": user["id"]})).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
+    feature_access = _normalize_feature_access(row.get("feature_access"))
     return UserInfo(
         id=row["id"],
         username=row["username"],
         email=row["email"],
         role=row["role"],
         max_points=row["max_points"],
+        feature_access=feature_access,
     )
 
 
@@ -265,7 +267,7 @@ async def update_settings(payload: dict[str, Any], user=Depends(require_admin)) 
 async def list_users(user=Depends(require_admin)) -> list[dict[str, Any]]:
     sql = text(
         """
-        SELECT users.id, users.username, users.email, users.allowed_topics, users.allowed_signals, roles.name AS role, users.created_at
+        SELECT users.id, users.username, users.email, users.feature_access, users.allowed_topics, users.allowed_signals, roles.name AS role, users.created_at
         FROM users
         JOIN roles ON roles.id = users.role_id
         ORDER BY users.id
@@ -273,7 +275,12 @@ async def list_users(user=Depends(require_admin)) -> list[dict[str, Any]]:
     )
     async with engine.begin() as conn:
         rows = (await conn.execute(sql)).mappings().all()
-    return [dict(row) for row in rows]
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        item["feature_access"] = _normalize_feature_access(item.get("feature_access"))
+        result.append(item)
+    return result
 
 
 @api_router.post("/users")
@@ -282,6 +289,7 @@ async def create_user(payload: dict[str, Any], user=Depends(require_admin)) -> d
     email = payload.get("email")
     password = payload.get("password")
     role = payload.get("role", "user")
+    feature_access = _normalize_feature_access(payload.get("feature_access"))
     allowed_topics = _normalize_allowed_topics(payload.get("allowed_topics", None))
     allowed_signals = _normalize_allowed_signals(payload.get("allowed_signals", None))
     if not username or not password:
@@ -290,9 +298,9 @@ async def create_user(payload: dict[str, Any], user=Depends(require_admin)) -> d
         raise HTTPException(status_code=400, detail="invalid role")
     sql = text(
         """
-        INSERT INTO users (username, email, password_hash, role_id, allowed_topics, allowed_signals)
-        VALUES (:username, :email, :password_hash, (SELECT id FROM roles WHERE name = :role), CAST(:allowed_topics AS JSONB), CAST(:allowed_signals AS JSONB))
-        RETURNING id, username, email, allowed_topics, allowed_signals, role_id, created_at
+        INSERT INTO users (username, email, password_hash, role_id, feature_access, allowed_topics, allowed_signals)
+        VALUES (:username, :email, :password_hash, (SELECT id FROM roles WHERE name = :role), CAST(:feature_access AS JSONB), CAST(:allowed_topics AS JSONB), CAST(:allowed_signals AS JSONB))
+        RETURNING id, username, email, feature_access, allowed_topics, allowed_signals, role_id, created_at
         """
     )
     async with engine.begin() as conn:
@@ -304,12 +312,15 @@ async def create_user(payload: dict[str, Any], user=Depends(require_admin)) -> d
                     "email": email,
                     "password_hash": hash_password(password),
                     "role": role,
+                    "feature_access": json.dumps(feature_access, ensure_ascii=False),
                     "allowed_topics": json.dumps(allowed_topics, ensure_ascii=False) if allowed_topics is not None else None,
                     "allowed_signals": json.dumps(allowed_signals, ensure_ascii=False) if allowed_signals is not None else None,
                 },
             )
         ).mappings().first()
-    return dict(row)
+    item = dict(row)
+    item["feature_access"] = _normalize_feature_access(item.get("feature_access"))
+    return item
 
 
 @api_router.put("/users/{user_id}")
@@ -336,6 +347,10 @@ async def update_user(user_id: int, payload: dict[str, Any], user=Depends(requir
     if role:
         updates.append("role_id = (SELECT id FROM roles WHERE name = :role)")
         params["role"] = role
+    if "feature_access" in payload:
+        feature_access = _normalize_feature_access(payload.get("feature_access"))
+        updates.append("feature_access = CAST(:feature_access AS JSONB)")
+        params["feature_access"] = json.dumps(feature_access, ensure_ascii=False)
     if "allowed_topics" in payload:
         updates.append("allowed_topics = CAST(:allowed_topics AS JSONB)")
         params["allowed_topics"] = (
@@ -353,14 +368,16 @@ async def update_user(user_id: int, payload: dict[str, Any], user=Depends(requir
         UPDATE users
         SET {', '.join(updates)}
         WHERE id = :user_id
-        RETURNING id, username, email, allowed_topics, allowed_signals, role_id, created_at
+        RETURNING id, username, email, feature_access, allowed_topics, allowed_signals, role_id, created_at
         """
     )
     async with engine.begin() as conn:
         row = (await conn.execute(sql, params)).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
-    return dict(row)
+    item = dict(row)
+    item["feature_access"] = _normalize_feature_access(item.get("feature_access"))
+    return item
 
 
 @api_router.delete("/users/{user_id}")
@@ -468,6 +485,7 @@ async def delete_invite(invite_id: int, user=Depends(require_admin)) -> dict[str
 
 @api_router.get("/charts")
 async def list_charts(user=Depends(require_user)) -> list[dict[str, Any]]:
+    await _require_feature_access(user, "charts")
     allowed_topics, allowed_signals = await _get_user_acl(user)
     sql = text(
         """
@@ -513,6 +531,7 @@ async def list_charts(user=Depends(require_user)) -> list[dict[str, Any]]:
 
 @api_router.post("/charts")
 async def create_chart(payload: dict[str, Any], user=Depends(require_user)) -> dict[str, Any]:
+    await _require_feature_access(user, "charts")
     if "config" not in payload:
         raise HTTPException(status_code=400, detail="config required")
     allowed_topics, allowed_signals = await _get_user_acl(user)
@@ -574,6 +593,7 @@ async def create_chart(payload: dict[str, Any], user=Depends(require_user)) -> d
 
 @api_router.put("/charts/{chart_id}")
 async def update_chart(chart_id: int, payload: dict[str, Any], user=Depends(require_user)) -> dict[str, Any]:
+    await _require_feature_access(user, "charts")
     if "config" not in payload:
         raise HTTPException(status_code=400, detail="config required")
     allowed_topics, allowed_signals = await _get_user_acl(user)
@@ -639,6 +659,7 @@ async def update_chart(chart_id: int, payload: dict[str, Any], user=Depends(requ
 
 @api_router.delete("/charts/{chart_id}")
 async def delete_chart(chart_id: int, user=Depends(require_user)) -> dict[str, str]:
+    await _require_feature_access(user, "charts")
     sql = text(
         """
         DELETE FROM user_charts
@@ -733,6 +754,32 @@ def _decode_json_value(value: Any) -> Any:
     return value
 
 
+def _normalize_feature_access(value: Any) -> dict[str, bool]:
+    raw = _decode_json_value(value)
+    if not isinstance(raw, dict):
+        return {"history": True, "charts": True}
+
+    def _to_bool(v: Any, default: bool = True) -> bool:
+        if v is None:
+            return default
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return v != 0
+        if isinstance(v, str):
+            normalized = v.strip().lower()
+            if normalized in {"false", "0", "no", "off"}:
+                return False
+            if normalized in {"true", "1", "yes", "on"}:
+                return True
+        return default
+
+    return {
+        "history": _to_bool(raw.get("history"), True),
+        "charts": _to_bool(raw.get("charts"), True),
+    }
+
+
 async def _get_user_acl(user: dict[str, Any]) -> tuple[set[str] | None, dict[str, set[str]] | None]:
     async with engine.begin() as conn:
         row = (
@@ -752,6 +799,41 @@ async def _get_user_acl(user: dict[str, Any]) -> tuple[set[str] | None, dict[str
     if normalized_signals is not None:
         signal_map = {topic: set(fields) for topic, fields in normalized_signals.items()}
     return topic_set, signal_map
+
+
+async def _require_feature_access(user: dict[str, Any], feature: str) -> None:
+    if feature not in ("history", "charts"):
+        return
+    detail = "History access denied" if feature == "history" else "Charts access denied"
+    feature_access = await _get_user_feature_access(user["id"])
+    if not bool(feature_access.get(feature, True)):
+        raise HTTPException(status_code=403, detail=detail)
+
+
+async def _require_history_or_charts_access(user: dict[str, Any]) -> None:
+    feature_access = await _get_user_feature_access(user["id"])
+    if bool(feature_access.get("history", True)) or bool(feature_access.get("charts", True)):
+        return
+    raise HTTPException(status_code=403, detail="History access denied")
+
+
+async def _get_user_feature_access(user_id: int) -> dict[str, bool]:
+    async with engine.begin() as conn:
+        row = (
+            await conn.execute(
+                text(
+                    """
+                    SELECT feature_access
+                    FROM users
+                    WHERE id = :id
+                    """
+                ),
+                {"id": user_id},
+            )
+        ).mappings().first()
+    if not row:
+        return {"history": False, "charts": False}
+    return _normalize_feature_access(row.get("feature_access"))
 
 
 def _is_topic_allowed(topic: str, allowed_topics: set[str] | None) -> bool:
@@ -810,6 +892,7 @@ async def history(
     order: str = Query("desc"),
     user=Depends(require_user),
 ) -> dict[str, Any]:
+    await _require_history_or_charts_access(user)
     allowed_topics, allowed_signals = await _get_user_acl(user)
     if not _is_topic_allowed(topic, allowed_topics):
         raise HTTPException(status_code=403, detail="Topic access denied")

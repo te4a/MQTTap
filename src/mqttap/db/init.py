@@ -134,6 +134,9 @@ async def _ensure_users_schema(conn) -> None:
         text("ALTER TABLE users ADD COLUMN IF NOT EXISTS max_points INTEGER NOT NULL DEFAULT 5000")
     )
     await conn.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS feature_access JSONB NULL")
+    )
+    await conn.execute(
         text("ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_topics JSONB NULL")
     )
     await conn.execute(
@@ -141,6 +144,24 @@ async def _ensure_users_schema(conn) -> None:
     )
     await conn.execute(
         text("UPDATE users SET max_points = 5000 WHERE max_points IS NULL")
+    )
+    await conn.execute(
+        text(
+            """
+            UPDATE users
+            SET feature_access = jsonb_build_object(
+                'history', true,
+                'charts', true
+            )
+            WHERE feature_access IS NULL
+            """
+        )
+    )
+    await conn.execute(
+        text("ALTER TABLE users DROP COLUMN IF EXISTS can_access_history")
+    )
+    await conn.execute(
+        text("ALTER TABLE users DROP COLUMN IF EXISTS can_access_charts")
     )
 
 

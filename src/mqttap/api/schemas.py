@@ -17,6 +17,7 @@ class UserInfo(BaseModel):
     email: EmailStr | None = None
     role: str
     max_points: int
+    feature_access: dict[str, bool]
 
 
 class ChangePasswordRequest(BaseModel):

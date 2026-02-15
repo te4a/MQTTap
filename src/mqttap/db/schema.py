@@ -30,6 +30,7 @@ users = Table(
     Column("role_id", Integer, nullable=False),
     Column("email_verified", Boolean, nullable=False, server_default="false"),
     Column("max_points", Integer, nullable=False, server_default="5000"),
+    Column("feature_access", JSON, nullable=True),
     Column("allowed_topics", JSON, nullable=True),
     Column("allowed_signals", JSON, nullable=True),
     Column("created_at", DateTime(timezone=True), server_default=func.now()),

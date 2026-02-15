@@ -79,7 +79,7 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, ma
     }))
   } else if (type === 'formula') {
     if (!item.formula || !item.fields || !item.fields.length) {
-      throw new Error('Formula config is empty')
+      throw new Error('errors.formulaConfigEmpty')
     }
     const params = {
       topic: item.topic,

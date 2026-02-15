@@ -64,7 +64,9 @@ const ERROR_MAP = {
   'Invalid current password': 'errors.invalidCurrentPassword',
   'Chart not found': 'errors.chartNotFound',
   'Topic access denied': 'errors.topicAccessDenied',
-  'Signal access denied': 'errors.signalAccessDenied'
+  'Signal access denied': 'errors.signalAccessDenied',
+  'History access denied': 'errors.historyAccessDenied',
+  'Charts access denied': 'errors.chartsAccessDenied'
 }
 
 function translateError(detail) {
