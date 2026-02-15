@@ -116,7 +116,7 @@
       <table>
         <thead>
           <tr>
-            <th>ID</th>
+            <th>{t('common.id', $lang)}</th>
             <th>{t('common.code', $lang)}</th>
             <th>{t('common.role', $lang)}</th>
             <th>{t('common.active', $lang)}</th>

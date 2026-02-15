@@ -595,7 +595,9 @@
                 })
             }
         } catch (err) {
-            error = err.message
+            error = typeof err?.message === 'string' && err.message.startsWith('errors.')
+                ? tr(err.message)
+                : err.message
         } finally {
             item.updating = false
         }
