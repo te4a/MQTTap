@@ -44,6 +44,7 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, ma
       }
     ]
   } else if (type === 'multi') {
+    const yAxisMode = item.yAxisMode === 'shared' ? 'shared' : 'multi'
     const fieldsList = item.channels.map(ch => ch.field)
     const params = {
       topic: item.topic,
@@ -75,7 +76,9 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, ma
       pointRadius: item.showPoints ? 3 : 0,
       pointHoverRadius: item.showPoints ? 4 : 4,
       pointHitRadius: item.showPoints ? 3 : 10,
-      yAxisID: channel.axis || (index === 0 ? 'y' : `y${index}`)
+      yAxisID: yAxisMode === 'shared'
+        ? 'y'
+        : (channel.axis || (index === 0 ? 'y' : `y${index}`))
     }))
   } else if (type === 'formula') {
     if (!item.formula || !item.fields || !item.fields.length) {

@@ -8,6 +8,7 @@
   export let modalFields = []
   export let modalField = ''
   export let modalSelectedFields = []
+  export let modalYAxisMode = 'multi'
   export let modalFormula = ''
   export let modalAgg = 'avg'
   export let modalInterval = 'minute'
@@ -92,6 +93,13 @@
                 </label>
               {/each}
             </div>
+          </div>
+          <div>
+            <label>{t('charts.yAxisMode', $lang)}</label>
+            <select bind:value={modalYAxisMode}>
+              <option value="multi">{t('charts.yAxisModeMulti', $lang)}</option>
+              <option value="shared">{t('charts.yAxisModeShared', $lang)}</option>
+            </select>
           </div>
         {/if}
         {#if modalType === 'formula'}

@@ -35,6 +35,7 @@
     let modalField = ''
     let modalFields = []
     let modalSelectedFields = []
+    let modalYAxisMode = 'multi'
     let modalFormula = ''
     let modalAgg = 'avg'
     let modalInterval = 'minute'
@@ -124,6 +125,10 @@
         return normalized
     }
 
+    function normalizeYAxisMode(value) {
+        return value === 'shared' ? 'shared' : 'multi'
+    }
+
     function getTopicByName(name) {
         return topics.find(t => t.topic === name)
     }
@@ -181,6 +186,7 @@
             const normalizedAgg = cfg.agg === 'none' ? 'off' : (cfg.agg || 'avg')
             const type = cfg.type || 'single'
             const channels = normalizeChannels(cfg.channels || [])
+            const yAxisMode = normalizeYAxisMode(cfg.yAxisMode)
             const formula = cfg.formula || ''
             const formulaFields = Array.isArray(cfg.fields) && cfg.fields.length
                 ? cfg.fields
@@ -192,6 +198,7 @@
                 topic: cfg.topic,
                 field: cfg.field,
                 channels,
+                yAxisMode,
                 formula,
                 fields: formulaFields,
                 isJson: topic ? topic.is_json : true,
@@ -276,6 +283,7 @@
                 const channels = normalizeChannels(config.channels || (config.fields || []))
                 if (!channels.length) throw new Error(tr('errors.channelsRequired'))
                 normalized.channels = channels.slice(0, 5)
+                normalized.yAxisMode = normalizeYAxisMode(config.yAxisMode)
             } else if (type === 'formula') {
                 if (!config.formula) {
                     throw new Error(tr('errors.formulaRequired'))
@@ -312,6 +320,7 @@
         modalFields = getFieldsForTopic(modalTopic)
         modalField = modalFields[0] || ''
         modalSelectedFields = modalFields.slice(0, 2)
+        modalYAxisMode = 'multi'
         modalFormula = ''
         modalAgg = agg
         modalInterval = interval
@@ -369,6 +378,7 @@
         modalFields = getFieldsForTopic(modalTopic)
         modalField = item.field || modalFields[0] || ''
         modalSelectedFields = (item.channels || []).map(channel => channel.field)
+        modalYAxisMode = normalizeYAxisMode(item.yAxisMode)
         modalFormula = item.formula || ''
         modalAgg = item.agg
         modalInterval = item.interval
@@ -480,6 +490,7 @@
         }
         if ((item.type || 'single') === 'multi') {
             base.channels = item.channels
+            base.yAxisMode = normalizeYAxisMode(item.yAxisMode)
         } else if ((item.type || 'single') === 'formula') {
             base.formula = item.formula
             base.fields = item.fields
@@ -670,6 +681,7 @@
                 type: 'multi',
                 topic: modalTopic,
                 channels,
+                yAxisMode: normalizeYAxisMode(modalYAxisMode),
                 agg: modalAgg,
                 interval: modalInterval,
                 intervalCount: normalizeIntervalCount(modalIntervalCount),
@@ -732,6 +744,7 @@
         item.topic = config.topic
         item.field = config.field
         item.channels = normalizeChannels(config.channels || [])
+        item.yAxisMode = normalizeYAxisMode(config.yAxisMode)
         item.fields = Array.isArray(config.fields) ? config.fields : []
         item.formula = config.formula || ''
         item.isJson = topic ? topic.is_json : true
@@ -759,6 +772,7 @@
             topic: config.topic,
             field: config.field,
             channels: normalizeChannels(config.channels || []),
+            yAxisMode: normalizeYAxisMode(config.yAxisMode),
             formula: config.formula || '',
             fields: Array.isArray(config.fields) ? config.fields : [],
             isJson: topic ? topic.is_json : true,
@@ -813,6 +827,18 @@
 
     async function toggleAlign(item, event) {
         item.alignTime = event.target.checked
+        item.menuOpen = false
+        charts = [...charts]
+        if (item.chart) {
+            item.chart.destroy()
+            item.chart = null
+        }
+        await updateChartConfig(item)
+    }
+
+    async function toggleYAxisMode(item, event) {
+        if ((item.type || 'single') !== 'multi') return
+        item.yAxisMode = normalizeYAxisMode(event.target.value)
         item.menuOpen = false
         charts = [...charts]
         if (item.chart) {
@@ -948,6 +974,7 @@
         {topics}
         modalFields={modalFields}
         modalSelectedFields={modalSelectedFields}
+        bind:modalYAxisMode
         modalError={modalError}
         modalFormulaError={modalFormulaError}
         title={modalEditingId ? t('charts.modalTitleEdit', $lang) : t('charts.modalTitleAdd', $lang)}
@@ -984,6 +1011,7 @@
             onToggleMenu={toggleMenu}
             onTogglePoints={togglePoints}
             onToggleAlign={toggleAlign}
+            onToggleYAxisMode={toggleYAxisMode}
             onEdit={openEditModal}
             onExport={exportChart}
             onRemove={removeChart}

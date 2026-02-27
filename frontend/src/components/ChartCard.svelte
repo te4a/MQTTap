@@ -11,6 +11,7 @@
   export let onToggleMenu = () => {}
   export let onTogglePoints = () => {}
   export let onToggleAlign = () => {}
+  export let onToggleYAxisMode = () => {}
   export let onEdit = () => {}
   export let onExport = () => {}
   export let onRemove = () => {}
@@ -60,6 +61,18 @@
               <input type="checkbox" checked={item.alignTime}
                      on:change={(e) => onToggleAlign(item, e)}/>
             </label>
+            {#if item.type === 'multi'}
+              <div class="menu-section">
+                <label>{t('charts.yAxisMode', $lang)}</label>
+                <select
+                  value={item.yAxisMode || 'multi'}
+                  on:change={(e) => onToggleYAxisMode(item, e)}
+                >
+                  <option value="multi">{t('charts.yAxisModeMulti', $lang)}</option>
+                  <option value="shared">{t('charts.yAxisModeShared', $lang)}</option>
+                </select>
+              </div>
+            {/if}
             <div class="menu-section">
               <label>{t('common.aggregation', $lang)}</label>
               <select bind:value={item.agg} on:change={() => onUpdateConfig(item)}>
