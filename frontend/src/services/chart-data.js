@@ -1,4 +1,10 @@
-import {aggregateSeries, alignTimeSeries, buildFormulaEvaluator, palette} from '../chart-utils.js'
+import {
+  aggregateSeries,
+  alignTimeSeries,
+  buildFormulaEvaluator,
+  normalizeNumericValue,
+  palette
+} from '../chart-utils.js'
 
 export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, maxPoints = 5000) {
   const type = item.type || 'single'
@@ -28,8 +34,8 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, ma
       ? rows.map(r => r.bucket)
       : rows.map(r => r.ts).reverse()
     const values = isAggEnabled(item.agg)
-      ? rows.map(r => (item.isJson ? r[item.field] : r.value))
-      : rows.map(r => valueFromRow(r, item.field, item.isJson)).reverse()
+      ? rows.map(r => normalizeNumericValue(item.isJson ? r[item.field] : r.value))
+      : rows.map(r => normalizeNumericValue(valueFromRow(r, item.field, item.isJson))).reverse()
     datasets = [
       {
         label: item.label,
@@ -68,8 +74,8 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, ma
     datasets = item.channels.map((channel, index) => ({
       label: channel.label || channel.field,
       data: isAggEnabled(item.agg)
-        ? rows.map(r => r[channel.field])
-        : rows.map(r => valueFromRow(r, channel.field, true)).reverse(),
+        ? rows.map(r => normalizeNumericValue(r[channel.field]))
+        : rows.map(r => normalizeNumericValue(valueFromRow(r, channel.field, true))).reverse(),
       borderColor: palette[index % palette.length],
       backgroundColor: 'rgba(17,24,39,0.1)',
       tension: 0.2,
@@ -101,7 +107,7 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, ma
     rows.slice().reverse().forEach((row, index) => {
       const values = item.fields.map(name => row[name])
       if (values.some(value => value === null || value === undefined)) return
-      const numericValues = values.map(Number)
+      const numericValues = values.map(normalizeNumericValue)
       if (numericValues.some(value => !Number.isFinite(value))) return
       let result
       try {

@@ -65,6 +65,27 @@ export function formatNumber(value, precision) {
   return String(value)
 }
 
+export function normalizeNumericValue(value) {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'boolean') {
+    return value ? 1 : 0
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(',', '.')
+    if (!normalized) return null
+    const direct = Number(normalized)
+    if (Number.isFinite(direct)) return direct
+    const match = normalized.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/)
+    if (!match) return null
+    const parsed = Number(match[0])
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
 export function buildScales(axisIds, tickCallback, axisColors = {}, formatNumberFn = (v) => v) {
   const scales = {
     x: {
