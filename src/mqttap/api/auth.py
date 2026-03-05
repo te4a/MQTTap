@@ -27,22 +27,25 @@ def _create_access_token(user_id: int, role: str) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
-async def authenticate(username: str, password: str) -> str:
+async def authenticate(identifier: str, password: str) -> str:
     sql = text(
         """
         SELECT users.id, users.password_hash, roles.name AS role
         FROM users
         JOIN roles ON roles.id = users.role_id
-        WHERE users.username = :username
+        WHERE users.username = :identifier
+           OR lower(COALESCE(users.email, '')) = lower(:identifier)
+        ORDER BY CASE WHEN users.username = :identifier THEN 0 ELSE 1 END
+        LIMIT 1
         """
     )
     async with engine.begin() as conn:
-        row = (await conn.execute(sql, {"username": username})).mappings().first()
+        row = (await conn.execute(sql, {"identifier": identifier})).mappings().first()
     if not row or not verify_password(password, row["password_hash"]):
-        logger.warning("Login failed: invalid credentials (%s)", username)
+        logger.warning("Login failed: invalid credentials (%s)", identifier)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if row["role"] == "pending":
-        logger.warning("Login failed: pending account (%s)", username)
+        logger.warning("Login failed: pending account (%s)", identifier)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account pending approval")
     return _create_access_token(int(row["id"]), row["role"])
 

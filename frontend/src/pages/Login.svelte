@@ -4,14 +4,14 @@
   import { availableLangs, lang, setLang, t } from '../i18n.js'
 
   const dispatch = createEventDispatcher()
-  let username = ''
+  let identifier = ''
   let password = ''
   let error = ''
 
   async function submit() {
     error = ''
     try {
-      const token = await api.login(username, password)
+      const token = await api.login(identifier.trim(), password)
       setToken(token.access_token)
       dispatch('navigate', '/')
       window.dispatchEvent(new Event('authChange'))
@@ -35,8 +35,8 @@
     </select>
   </div>
   <h2>{t('login.title', $lang)}</h2>
-  <label>{t('common.username', $lang)}</label>
-  <input type="text" bind:value={username} placeholder={t('placeholders.username', $lang)} />
+  <label>{t('login.identifier', $lang)}</label>
+  <input type="text" bind:value={identifier} placeholder={t('placeholders.loginOrEmail', $lang)} />
   <label>{t('common.password', $lang)}</label>
   <input type="password" bind:value={password} />
   <button on:click={submit}>{t('login.submit', $lang)}</button>

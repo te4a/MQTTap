@@ -59,8 +59,8 @@
     </select>
   </div>
   <h2>{t('register.title', $lang)}</h2>
-  <label>{t('common.username', $lang)}</label>
-  <input type="text" bind:value={username} placeholder={t('placeholders.username', $lang)} />
+  <label>{t('register.login', $lang)}</label>
+  <input type="text" bind:value={username} placeholder={t('placeholders.login', $lang)} />
 
   <label>{t('common.email', $lang)} ({t('common.optional', $lang)})</label>
   <input type="email" bind:value={email} placeholder={t('placeholders.email', $lang)} />
