@@ -1,5 +1,4 @@
 import {
-  aggregateSeries,
   alignTimeSeries,
   buildFormulaEvaluator,
   normalizeNumericValue,
@@ -90,24 +89,32 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, ma
     if (!item.formula || !item.fields || !item.fields.length) {
       throw new Error('errors.formulaConfigEmpty')
     }
+    const count = Math.max(1, Number(item.intervalCount) || 1)
     const params = {
       topic: item.topic,
       fields: item.fields.join(','),
       from_ts: item.fromTs || undefined,
-      to_ts: item.toTs || undefined,
-      order: 'desc',
-      limit: maxPoints
+      to_ts: item.toTs || undefined
+    }
+    if (isAggEnabled(item.agg)) {
+      params.agg = item.agg
+      params.interval = count > 1 ? `${count} ${item.interval}` : item.interval
+    } else {
+      // Formula series can discard rows when one of the source fields is empty.
+      // Fetch a wider raw window first, then trim back to the chart limit.
+      params.order = 'desc'
+      params.limit = Math.min(limit * Math.max(2, Math.min(item.fields.length, 5)), 25000)
     }
     const data = await api.history(params)
     const rows = data.rows || []
     const evaluator = buildFormulaEvaluator(item.fields, item.formula)
-    const rawLabels = rows.map(r => r.ts).reverse()
-    const rawValues = []
-    const rawFilteredLabels = []
-    rows.slice().reverse().forEach((row, index) => {
-      const values = item.fields.map(name => row[name])
-      if (values.some(value => value === null || value === undefined)) return
-      const numericValues = values.map(normalizeNumericValue)
+    const formulaRows = isAggEnabled(item.agg) ? rows : rows.slice().reverse()
+    const labelKey = isAggEnabled(item.agg) ? 'bucket' : 'ts'
+    const formulaLabels = []
+    const formulaValues = []
+
+    formulaRows.forEach((row) => {
+      const numericValues = item.fields.map(name => normalizeNumericValue(row[name]))
       if (numericValues.some(value => !Number.isFinite(value))) return
       let result
       try {
@@ -120,47 +127,23 @@ export async function fetchChartSeries(api, item, isAggEnabled, valueFromRow, ma
         error = 'errors.divisionByZero'
         return
       }
-      rawValues.push(result)
-      rawFilteredLabels.push(rawLabels[index])
+      formulaValues.push(result)
+      formulaLabels.push(row[labelKey])
     })
-    if (isAggEnabled(item.agg)) {
-      const aggregated = aggregateSeries(
-        rawFilteredLabels,
-        rawValues,
-        item.interval,
-        item.agg,
-        item.intervalCount || 1
-      )
-      labels = aggregated.labels
-      datasets = [
-        {
-          label: item.label,
-          data: aggregated.values,
-          borderColor: palette[0],
-          backgroundColor: 'rgba(17,24,39,0.1)',
-          tension: 0.2,
-          pointRadius: item.showPoints ? 3 : 0,
-          pointHoverRadius: item.showPoints ? 4 : 4,
-          pointHitRadius: item.showPoints ? 3 : 10,
-          yAxisID: 'y'
-        }
-      ]
-    } else {
-      labels = rawFilteredLabels
-      datasets = [
-        {
-          label: item.label,
-          data: rawValues,
-          borderColor: palette[0],
-          backgroundColor: 'rgba(17,24,39,0.1)',
-          tension: 0.2,
-          pointRadius: item.showPoints ? 3 : 0,
-          pointHoverRadius: item.showPoints ? 4 : 4,
-          pointHitRadius: item.showPoints ? 3 : 10,
-          yAxisID: 'y'
-        }
-      ]
-    }
+    labels = formulaLabels
+    datasets = [
+      {
+        label: item.label,
+        data: formulaValues,
+        borderColor: palette[0],
+        backgroundColor: 'rgba(17,24,39,0.1)',
+        tension: 0.2,
+        pointRadius: item.showPoints ? 3 : 0,
+        pointHoverRadius: item.showPoints ? 4 : 4,
+        pointHitRadius: item.showPoints ? 3 : 10,
+        yAxisID: 'y'
+      }
+    ]
   }
 
   const trimmed = trimSeries(labels, datasets, limit)

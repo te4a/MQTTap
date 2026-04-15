@@ -37,6 +37,8 @@ from mqttap.db.init import init_base_schema
 from mqttap.services.mqtt import MqttConsumer
 from mqttap.services.settings import load_settings, save_settings
 
+MAX_CHART_POINTS = 5000
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -67,6 +69,14 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def _normalize_max_points(value: Any, default: int = MAX_CHART_POINTS) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(1, min(parsed, MAX_CHART_POINTS))
+
+
 @api_router.post("/auth/login", response_model=TokenResponse)
 async def login(payload: LoginRequest) -> TokenResponse:
     token = await authenticate(payload.username, payload.password)
@@ -94,7 +104,7 @@ async def me(user=Depends(require_user)) -> UserInfo:
         username=row["username"],
         email=row["email"],
         role=row["role"],
-        max_points=row["max_points"],
+        max_points=_normalize_max_points(row["max_points"]),
         feature_access=feature_access,
     )
 
@@ -206,7 +216,7 @@ async def update_profile(payload: UpdateProfileRequest, user=Depends(require_use
         updates.append("email = :email")
         params["email"] = email
     if "max_points" in fields_set:
-        if max_points is None or not 1 <= max_points <= 5000:
+        if max_points is None or not 1 <= max_points <= MAX_CHART_POINTS:
             raise HTTPException(status_code=400, detail="max_points must be between 1 and 5000")
         updates.append("max_points = :max_points")
         params["max_points"] = max_points
@@ -239,7 +249,7 @@ async def get_public_settings(user=Depends(require_user)) -> dict[str, Any]:
         ).mappings().first()
     return {
         "float_precision": data.get("float_precision"),
-        "max_points": row["max_points"] if row else 5000,
+        "max_points": _normalize_max_points(row["max_points"] if row else MAX_CHART_POINTS),
     }
 
 
@@ -888,7 +898,7 @@ async def history(
     to_ts: str | None = Query(None),
     agg: str | None = Query(None),
     interval: str | None = Query(None),
-    limit: int = Query(5000, ge=1, le=5000),
+    limit: int = Query(MAX_CHART_POINTS, ge=1),
     order: str = Query("desc"),
     user=Depends(require_user),
 ) -> dict[str, Any]:
@@ -919,6 +929,7 @@ async def history(
 
     dt_from = _parse_dt(from_ts)
     dt_to = _parse_dt(to_ts)
+    limit = min(limit, MAX_CHART_POINTS)
 
     if agg:
         parsed = _parse_interval(interval)
