@@ -49,3 +49,10 @@ class InviteUpdateRequest(BaseModel):
     role_name: str | None = None
     is_active: bool | None = None
     is_single_use: bool | None = None
+
+
+class CsvImportRequest(BaseModel):
+    topic: str
+    csv_text: str
+    field_mapping: dict[str, str]
+    delimiter: str | None = None

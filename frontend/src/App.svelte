@@ -5,6 +5,7 @@
   import Login from './pages/Login.svelte'
   import Register from './pages/Register.svelte'
   import History from './pages/History.svelte'
+  import HistoryImport from './pages/HistoryImport.svelte'
   import Chart from './pages/Chart.svelte'
   import Settings from './pages/Settings.svelte'
   import Users from './pages/Users.svelte'
@@ -15,6 +16,7 @@
 
   const routes = {
     '/history': History,
+    '/history-import': HistoryImport,
     '/chart': Chart,
     '/profile': Profile,
     '/invites': Invites,
@@ -101,6 +103,7 @@
     const map = {
       '/': 'nav.profile',
       '/history': 'nav.history',
+      '/history-import': 'nav.importCsv',
       '/chart': 'nav.charts',
       '/profile': 'nav.profile',
       '/settings': 'nav.settings',
@@ -121,6 +124,7 @@
       return user.role === 'admin'
     }
     if (path === '/history') return hasFeatureAccess('history')
+    if (path === '/history-import') return hasFeatureAccess('history')
     if (path === '/chart') return hasFeatureAccess('charts')
     if (path === '/') return true
     return true

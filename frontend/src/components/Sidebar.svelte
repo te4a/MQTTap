@@ -10,6 +10,7 @@
 
   const links = [
     { href: '/history', key: 'nav.history', feature: 'history' },
+    { href: '/history-import', key: 'nav.importCsv', feature: 'history' },
     { href: '/chart', key: 'nav.charts', feature: 'charts' },
     { href: '/profile', key: 'nav.profile' },
     { href: '/invites', key: 'nav.invites', adminOnly: true },

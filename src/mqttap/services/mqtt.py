@@ -69,6 +69,7 @@ class MqttConsumer:
                 async with Client(
                     runtime.get("mqtt_host", settings.mqtt_host),
                     int(runtime.get("mqtt_port", settings.mqtt_port)),
+                    identifier="mqttap_app",
                     username=runtime.get("mqtt_username", settings.mqtt_username),
                     password=runtime.get("mqtt_password", settings.mqtt_password),
                 ) as client:

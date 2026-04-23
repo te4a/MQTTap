@@ -1,10 +1,13 @@
 ﻿import asyncio
 import json
+import csv
 import logging
+import math
 import secrets
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +20,7 @@ from sqlalchemy import text
 from mqttap.api.auth import authenticate, require_admin, require_user
 from mqttap.api.schemas import (
     ChangePasswordRequest,
+    CsvImportRequest,
     InviteCreateRequest,
     InviteUpdateRequest,
     LoginRequest,
@@ -38,6 +42,7 @@ from mqttap.services.mqtt import MqttConsumer
 from mqttap.services.settings import load_settings, save_settings
 
 MAX_CHART_POINTS = 5000
+CSV_IMPORT_PREVIEW_LIMIT = 20
 
 
 @asynccontextmanager
@@ -715,6 +720,106 @@ def _parse_interval(value: str | None) -> tuple[int, str] | None:
     return count, unit
 
 
+def _local_timezone():
+    return datetime.now().astimezone().tzinfo or timezone.utc
+
+
+def _ensure_tzaware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=_local_timezone())
+    return value
+
+
+def _parse_import_datetime(value: str) -> datetime:
+    raw = value.strip()
+    if not raw:
+        raise ValueError("datetime is empty")
+    try:
+        return _ensure_tzaware(datetime.fromisoformat(raw.replace("Z", "+00:00")))
+    except ValueError:
+        pass
+    for fmt in (
+        "%d.%m.%y %H:%M:%S",
+        "%d.%m.%Y %H:%M:%S",
+        "%d.%m.%y %H:%M",
+        "%d.%m.%Y %H:%M",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+    ):
+        try:
+            return _ensure_tzaware(datetime.strptime(raw, fmt))
+        except ValueError:
+            continue
+    raise ValueError("unsupported datetime format")
+
+
+def _detect_csv_delimiter(csv_text: str) -> str:
+    lines = csv_text.splitlines()
+    if not lines:
+        return ";"
+    sample = "\n".join(lines[:5])
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=";,\t|")
+        if dialect.delimiter:
+            return dialect.delimiter
+    except csv.Error:
+        pass
+    first_line = lines[0]
+    counts = {delimiter: first_line.count(delimiter) for delimiter in (";", "\t", ",", "|")}
+    best = max(counts, key=counts.get)
+    return best if counts[best] > 0 else ";"
+
+
+def _normalize_csv_headers(fieldnames: list[str | None] | None) -> list[str]:
+    if not fieldnames:
+        raise HTTPException(status_code=400, detail="CSV header row is required")
+    headers: list[str] = []
+    for index, fieldname in enumerate(fieldnames, start=1):
+        header = (fieldname or "").lstrip("\ufeff").strip()
+        if not header:
+            raise HTTPException(status_code=400, detail=f"CSV header #{index} is empty")
+        if header in headers:
+            raise HTTPException(status_code=400, detail=f"Duplicate CSV header: {header}")
+        headers.append(header)
+    return headers
+
+
+def _normalize_number_string(value: str) -> str:
+    normalized = value.strip().replace("\u00a0", "").replace(" ", "")
+    if "," in normalized and "." not in normalized:
+        normalized = normalized.replace(",", ".")
+    return normalized
+
+
+def _coerce_import_value(raw: str | None, column_type: str, float_precision: int) -> Any:
+    if raw is None:
+        return None
+    text_value = str(raw).strip()
+    if text_value == "":
+        return None
+    normalized_type = column_type.lower()
+    if normalized_type == "bigint":
+        parsed = float(_normalize_number_string(text_value))
+        if not math.isfinite(parsed) or not parsed.is_integer():
+            raise ValueError("expected integer")
+        return int(parsed)
+    if normalized_type == "double precision":
+        parsed = float(_normalize_number_string(text_value))
+        if not math.isfinite(parsed):
+            raise ValueError("expected finite number")
+        return round(parsed, float_precision)
+    if normalized_type == "boolean":
+        normalized_value = text_value.lower()
+        if normalized_value in {"true", "1", "yes", "on", "да"}:
+            return True
+        if normalized_value in {"false", "0", "no", "off", "нет"}:
+            return False
+        raise ValueError("expected boolean")
+    if normalized_type == "jsonb":
+        return json.loads(text_value)
+    return text_value
+
+
 def _normalize_allowed_topics(value: Any) -> list[str] | None:
     if value is None:
         return None
@@ -863,6 +968,168 @@ def _filter_fields_by_acl(
     return [field for field in fields if field in allowed]
 
 
+async def _get_topic_context(
+    topic: str,
+    user: dict[str, Any],
+    *,
+    require_json: bool = False,
+) -> dict[str, Any]:
+    allowed_topics, allowed_signals = await _get_user_acl(user)
+    if not _is_topic_allowed(topic, allowed_topics):
+        raise HTTPException(status_code=403, detail="Topic access denied")
+    sql = text("SELECT topic, table_name, is_json FROM topic_registry WHERE topic = :topic")
+    async with engine.begin() as conn:
+        row = (await conn.execute(sql, {"topic": topic})).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Unknown topic")
+    if require_json and not row["is_json"]:
+        raise HTTPException(status_code=400, detail="Only JSON topics are supported for CSV import")
+
+    columns = await get_table_columns(engine, row["table_name"])
+    all_fields = [column for column in columns.keys() if column not in ("id", "ts")]
+    visible_fields = _filter_fields_by_acl(topic, all_fields, allowed_signals)
+    if not visible_fields:
+        raise HTTPException(status_code=403, detail="Signal access denied")
+
+    return {
+        "topic": row["topic"],
+        "table_name": row["table_name"],
+        "is_json": row["is_json"],
+        "columns": columns,
+        "all_fields": all_fields,
+        "visible_fields": visible_fields,
+    }
+
+
+def _parse_csv_records(csv_text: str, delimiter: str | None) -> tuple[str, list[str], list[dict[str, str]]]:
+    if not csv_text or not csv_text.strip():
+        raise HTTPException(status_code=400, detail="CSV is empty")
+    actual_delimiter = delimiter or _detect_csv_delimiter(csv_text)
+    reader = csv.DictReader(StringIO(csv_text), delimiter=actual_delimiter)
+    headers = _normalize_csv_headers(reader.fieldnames)
+    reader.fieldnames = headers
+    records: list[dict[str, str]] = []
+    for row in reader:
+        normalized_row = {header: row.get(header, "") for header in headers}
+        if any((str(value).strip() if value is not None else "") for value in normalized_row.values()):
+            records.append(normalized_row)
+    return actual_delimiter, headers, records
+
+
+def _validate_csv_import_payload(
+    payload: CsvImportRequest,
+    headers: list[str],
+    visible_fields: list[str],
+) -> tuple[str, dict[str, str]]:
+    datetime_column = ""
+    mapping: dict[str, str] = {}
+    assigned_targets: set[str] = set()
+
+    for source_column, target_field in payload.field_mapping.items():
+        clean_column = source_column.strip()
+        clean_target = target_field.strip()
+        if not clean_column or not clean_target:
+            continue
+        if clean_column not in headers:
+            raise HTTPException(status_code=400, detail=f"Unknown CSV column: {clean_column}")
+        if clean_target in assigned_targets:
+            raise HTTPException(status_code=400, detail=f"Import target selected more than once: {clean_target}")
+        assigned_targets.add(clean_target)
+        if clean_target == "datetime":
+            datetime_column = clean_column
+            continue
+        if clean_target not in visible_fields:
+            raise HTTPException(status_code=400, detail=f"Unknown import field: {clean_target}")
+        mapping[clean_target] = clean_column
+    if not datetime_column:
+        raise HTTPException(status_code=400, detail="Datetime field must be selected in mapping")
+    if not mapping:
+        raise HTTPException(status_code=400, detail="Select at least one field to import")
+    return datetime_column, mapping
+
+
+def _build_csv_import_preview(
+    records: list[dict[str, str]],
+    datetime_column: str,
+    field_mapping: dict[str, str],
+    column_types: dict[str, str],
+    float_precision: int,
+) -> dict[str, Any]:
+    preview_rows: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    valid_rows: list[dict[str, Any]] = []
+    skipped_rows = 0
+
+    for row_index, record in enumerate(records, start=2):
+        row_errors: list[dict[str, Any]] = []
+        raw_dt = record.get(datetime_column, "")
+        try:
+            parsed_dt = _parse_import_datetime(raw_dt)
+        except ValueError as exc:
+            row_errors.append(
+                {
+                    "row": row_index,
+                    "column": datetime_column,
+                    "value": raw_dt,
+                    "message": f"Invalid datetime: {exc}",
+                }
+            )
+            parsed_dt = None
+
+        values: dict[str, Any] = {}
+        for field, source_column in field_mapping.items():
+            raw_value = record.get(source_column, "")
+            try:
+                coerced_value = _coerce_import_value(
+                    raw_value,
+                    column_types.get(field, "text"),
+                    float_precision,
+                )
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                row_errors.append(
+                    {
+                        "row": row_index,
+                        "column": source_column,
+                        "field": field,
+                        "value": raw_value,
+                        "message": f"Invalid value for {field}: {exc}",
+                    }
+                )
+                continue
+            if coerced_value is not None:
+                values[field] = coerced_value
+
+        if row_errors:
+            errors.extend(row_errors)
+            continue
+        if parsed_dt is None:
+            continue
+        if not values:
+            skipped_rows += 1
+            continue
+
+        normalized_row = {"ts": parsed_dt}
+        preview_row = {"ts": parsed_dt.isoformat()}
+        for field in field_mapping:
+            normalized_row[field] = values.get(field)
+            preview_row[field] = values.get(field)
+        valid_rows.append(normalized_row)
+        if len(preview_rows) < CSV_IMPORT_PREVIEW_LIMIT:
+            preview_rows.append(preview_row)
+
+    return {
+        "preview_rows": preview_rows,
+        "valid_rows": valid_rows,
+        "errors": errors,
+        "summary": {
+            "total_rows": len(records),
+            "valid_rows": len(valid_rows),
+            "invalid_rows": len({error["row"] for error in errors}),
+            "skipped_rows": skipped_rows,
+        },
+    }
+
+
 @api_router.get("/topics")
 async def list_topics(user=Depends(require_user)) -> list[dict[str, Any]]:
     allowed_topics, allowed_signals = await _get_user_acl(user)
@@ -890,6 +1157,77 @@ async def list_topics(user=Depends(require_user)) -> list[dict[str, Any]]:
     return result
 
 
+@api_router.post("/history-import/preview")
+async def preview_history_import(payload: CsvImportRequest, user=Depends(require_user)) -> dict[str, Any]:
+    await _require_feature_access(user, "history")
+    topic_context = await _get_topic_context(payload.topic, user, require_json=True)
+    runtime = await load_settings(engine)
+    float_precision = int(runtime.get("float_precision", settings.float_precision))
+    actual_delimiter, headers, records = _parse_csv_records(payload.csv_text, payload.delimiter)
+    datetime_column, field_mapping = _validate_csv_import_payload(
+        payload, headers, topic_context["visible_fields"]
+    )
+    preview = _build_csv_import_preview(
+        records,
+        datetime_column,
+        field_mapping,
+        topic_context["columns"],
+        float_precision,
+    )
+    return {
+        "topic": topic_context["topic"],
+        "delimiter": actual_delimiter,
+        "headers": headers,
+        "preview_rows": preview["preview_rows"],
+        "errors": preview["errors"],
+        "summary": preview["summary"],
+    }
+
+
+@api_router.post("/history-import/commit")
+async def commit_history_import(payload: CsvImportRequest, user=Depends(require_user)) -> dict[str, Any]:
+    await _require_feature_access(user, "history")
+    topic_context = await _get_topic_context(payload.topic, user, require_json=True)
+    runtime = await load_settings(engine)
+    float_precision = int(runtime.get("float_precision", settings.float_precision))
+    actual_delimiter, headers, records = _parse_csv_records(payload.csv_text, payload.delimiter)
+    datetime_column, field_mapping = _validate_csv_import_payload(
+        payload, headers, topic_context["visible_fields"]
+    )
+    preview = _build_csv_import_preview(
+        records,
+        datetime_column,
+        field_mapping,
+        topic_context["columns"],
+        float_precision,
+    )
+    if preview["errors"]:
+        raise HTTPException(status_code=400, detail="CSV import preview has errors")
+    valid_rows = preview["valid_rows"]
+    if not valid_rows:
+        raise HTTPException(status_code=400, detail="No valid rows to import")
+
+    column_names = ["ts", *field_mapping.keys()]
+    quoted_columns = ", ".join(quote_ident(column) for column in column_names)
+    placeholders = ", ".join(f":{column}" for column in column_names)
+    sql = text(
+        f"""
+        INSERT INTO {quote_ident(topic_context["table_name"])} ({quoted_columns})
+        VALUES ({placeholders})
+        """
+    )
+    async with engine.begin() as conn:
+        await conn.execute(sql, valid_rows)
+
+    return {
+        "status": "ok",
+        "topic": topic_context["topic"],
+        "delimiter": actual_delimiter,
+        "imported_rows": len(valid_rows),
+        "skipped_rows": preview["summary"]["skipped_rows"],
+    }
+
+
 @api_router.get("/history")
 async def history(
     topic: str,
@@ -903,22 +1241,11 @@ async def history(
     user=Depends(require_user),
 ) -> dict[str, Any]:
     await _require_history_or_charts_access(user)
-    allowed_topics, allowed_signals = await _get_user_acl(user)
-    if not _is_topic_allowed(topic, allowed_topics):
-        raise HTTPException(status_code=403, detail="Topic access denied")
-    sql = text("SELECT topic, table_name, is_json FROM topic_registry WHERE topic = :topic")
-    async with engine.begin() as conn:
-        row = (await conn.execute(sql, {"topic": topic})).mappings().first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Unknown topic")
-
-    table_name = row["table_name"]
-    is_json = row["is_json"]
-    columns = await get_table_columns(engine, table_name)
-    all_fields = [c for c in columns.keys() if c not in ("id", "ts")]
-    visible_fields = _filter_fields_by_acl(topic, all_fields, allowed_signals)
-    if not visible_fields:
-        raise HTTPException(status_code=403, detail="Signal access denied")
+    topic_context = await _get_topic_context(topic, user)
+    table_name = topic_context["table_name"]
+    is_json = topic_context["is_json"]
+    all_fields = topic_context["all_fields"]
+    visible_fields = topic_context["visible_fields"]
     requested_fields = _parse_fields(fields) or visible_fields
 
     for field in requested_fields:

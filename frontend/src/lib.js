@@ -66,7 +66,15 @@ const ERROR_MAP = {
   'Topic access denied': 'errors.topicAccessDenied',
   'Signal access denied': 'errors.signalAccessDenied',
   'History access denied': 'errors.historyAccessDenied',
-  'Charts access denied': 'errors.chartsAccessDenied'
+  'Charts access denied': 'errors.chartsAccessDenied',
+  'Only JSON topics are supported for CSV import': 'errors.importRequiresJsonTopic',
+  'CSV is empty': 'errors.csvEmpty',
+  'CSV header row is required': 'errors.csvHeaderRequired',
+  'datetime_column is required': 'errors.datetimeColumnRequired',
+  'Datetime field must be selected in mapping': 'errors.datetimeMappingRequired',
+  'Select at least one field to import': 'errors.importFieldSelectionRequired',
+  'CSV import preview has errors': 'errors.importPreviewHasErrors',
+  'No valid rows to import': 'errors.noValidRowsToImport'
 }
 
 function translateError(detail) {
@@ -112,6 +120,14 @@ export const api = {
   }),
   topics: () => request('/topics'),
   history: (params) => request(`/history${toQuery(params)}`),
+  previewHistoryImport: (payload) => request('/history-import/preview', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
+  commitHistoryImport: (payload) => request('/history-import/commit', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
   listCharts: () => request('/charts'),
   createChart: (payload) => request('/charts', {
     method: 'POST',
